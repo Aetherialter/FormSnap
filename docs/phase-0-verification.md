@@ -19,7 +19,7 @@
 | Room / Repository | 6 | 全通过 | 创建草稿、时间精度、真实文件库关闭重开、同名不同 ID、非法输入、冲突不覆盖、排序 |
 | ViewModel | 6 | 全通过 | 空白/超长输入、写入失败与重试、连续提交防重、名称恢复、读取失败区别于空数据 |
 | Robolectric 应用流程 | 1 | 通过 | 真实 Activity + Compose Navigation + Room：启动、创建、详情、返回、Activity 重建后重新打开 |
-| 设备 Smoke Test | 1 | 已编译，未运行 | 无连接设备或已配置 AVD |
+| 设备 Smoke Test | 1 | 已编译，未运行 | 后续连接 API 34 手机，但 USB 安装被手机系统拒绝 |
 
 21 项本地自动测试全部通过，0 failures / 0 errors / 0 skipped。
 Robolectric 使用 API 35 模拟 Android 环境；没有据此宣称真实设备的 API 26–36 兼容性均已通过。
@@ -74,7 +74,11 @@ try {
 
 ## 尚待真实设备验收
 
-本机 `adb devices -l` 无连接设备，`emulator -list-avds` 无结果，没有安装系统镜像或创建模拟器。
+最初 `adb devices -l` 无连接设备，`emulator -list-avds` 无结果，没有安装系统镜像或创建模拟器。
+基线提交后复查发现一台 V2055A 手机（API 34 / Android 14）已连接，未安装同包名应用，手机处于锁屏状态。
+尝试安装 Debug APK 与测试 APK，均返回 `INSTALL_FAILED_ABORTED: User rejected permissions`。
+因此未获得安装、设备启动或 Instrumentation 通过的证据；需要用户在手机端解锁并允许本次 USB 安装后才能继续。
+未自动修改手机安全设置，也未反复重试安装。
 下列检查尚未执行，不能将文件数据库重开或 Activity 重建等同于它们：
 
 1. 在 API 26+ 设备安装、冷启动，确认首页排版、系统栏、软键盘和系统返回键正常。
