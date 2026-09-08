@@ -41,6 +41,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -49,9 +52,10 @@ import androidx.navigation.navArgument
 import com.formsnap.app.R
 import com.formsnap.app.domain.model.DigitizationTask
 import com.formsnap.app.domain.model.TaskStatus
+import com.formsnap.app.domain.repository.SourceRepository
 
 @Composable
-fun FormSnapApp(model: TaskViewModel) {
+fun FormSnapApp(model: TaskViewModel, sourceRepository: SourceRepository) {
     val navigation = rememberNavController()
     val tasks by model.tasks.collectAsStateWithLifecycle()
     val name by model.taskName.collectAsStateWithLifecycle()
@@ -90,10 +94,15 @@ fun FormSnapApp(model: TaskViewModel) {
         }
         composable("task/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) {
             val id = it.arguments?.getString("id").orEmpty()
+            val sourceModel: SourceViewModel = viewModel(
+                viewModelStoreOwner = it,
+                factory = viewModelFactory { initializer { SourceViewModel(id, sourceRepository) } },
+            )
             val detail by remember(model, id) { model.observeTask(id) }
                 .collectAsStateWithLifecycle(initialValue = TaskDetailState.Loading)
             TaskDetailScreen(
                 state = detail,
+                sourceModel = sourceModel,
                 onBack = { navigation.popBackStack() },
                 onRetry = model::retryLoading,
             )
@@ -197,6 +206,7 @@ private fun CreateTaskScreen(
 @Composable
 private fun TaskDetailScreen(
     state: TaskDetailState,
+    sourceModel: SourceViewModel,
     onBack: () -> Unit,
     onRetry: () -> Unit,
 ) {
@@ -212,14 +222,11 @@ private fun TaskDetailScreen(
                     Text(task.name, style = MaterialTheme.typography.headlineSmall)
                     Spacer(Modifier.height(24.dp))
                     DetailValue(stringResource(R.string.status_label), stringResource(task.status.label()))
-                    // Phase 0 cannot attach pages or create rows. These are empty counts, not results.
-                    DetailValue(stringResource(R.string.source_count), stringResource(R.string.zero_count))
+                    // Structured records and quality checks are outside Phase 1.
                     DetailValue(stringResource(R.string.record_count), stringResource(R.string.zero_count))
                     DetailValue(stringResource(R.string.review_count), stringResource(R.string.not_checked))
                     Spacer(Modifier.height(32.dp))
-                    Text(stringResource(R.string.no_sources), style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(12.dp))
-                    Text(stringResource(R.string.phase_zero_hint), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    SourceSection(sourceModel, task.status == TaskStatus.DRAFT || task.status == TaskStatus.CAPTURING)
                 }
             }
         }

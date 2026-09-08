@@ -1,5 +1,7 @@
 package com.formsnap.app.domain.model
 
+import java.time.Instant
+
 /** URI text keeps Android dependencies outside the domain. Permission ownership belongs to data. */
 data class SourceDocument(
     val id: String,
@@ -7,6 +9,8 @@ data class SourceDocument(
     val sourceUri: String,
     val pageIndex: Int,
     val status: SourceStatus,
+    val createdAt: Instant,
+    val displayName: String? = null,
 ) {
     init {
         require(id.isNotBlank() && taskId.isNotBlank() && sourceUri.isNotBlank())

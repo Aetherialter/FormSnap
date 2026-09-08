@@ -26,7 +26,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 })
-                FormSnapApp(model)
+                FormSnapApp(model, (application as FormSnapApplication).sourceRepository)
             }
         }
     }
