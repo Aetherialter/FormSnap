@@ -1,0 +1,37 @@
+<resources>
+    <string name="app_name">表录</string>
+    <string name="product_promise">纸质表单，可靠变成可用数据。</string>
+    <string name="new_task">新建录入任务</string>
+    <string name="add_task">+ 新建录入任务</string>
+    <string name="recent_tasks">最近任务</string>
+    <string name="no_tasks">暂无录入任务</string>
+    <string name="empty_hint">从一个任务开始整理纸质表单。</string>
+    <string name="task_name">任务名称</string>
+    <string name="task_name_hint">为这批纸质表单起一个便于查找的名称。</string>
+    <string name="name_length">%1$d / %2$d</string>
+    <string name="name_too_long">任务名称过长，请缩短至 %1$d 字以内。</string>
+    <string name="create">创建</string>
+    <string name="creating">正在创建…</string>
+    <string name="back">返回</string>
+    <string name="task_detail">任务详情</string>
+    <string name="status_label">当前状态</string>
+    <string name="source_count">来源页面数量</string>
+    <string name="record_count">数据记录数量</string>
+    <string name="review_count">待确认数量</string>
+    <string name="zero_count">0</string>
+    <string name="not_checked">尚未检查</string>
+    <string name="no_sources">尚未添加纸质表单。</string>
+    <string name="phase_zero_hint">当前版本支持创建和保存任务，表单添加与数据检查将在后续版本提供。</string>
+    <string name="task_missing">未找到此任务。</string>
+    <string name="loading">正在读取任务</string>
+    <string name="load_failed">任务读取失败，请重试。</string>
+    <string name="create_failed">任务未能保存，请重试。</string>
+    <string name="retry">重试</string>
+    <string name="status_draft">草稿</string>
+    <string name="status_capturing">收集表单中</string>
+    <string name="status_processing">整理中</string>
+    <string name="status_review_required">待复核</string>
+    <string name="status_ready_to_export">可导出</string>
+    <string name="status_exported">已导出</string>
+    <string name="status_failed">处理失败</string>
+</resources>
