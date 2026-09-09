@@ -66,4 +66,14 @@ class GridRecognitionTest {
         val cross = TextEvidence("跨列", SourceRegion(0.25f, 0.30f, 0.35f, 0.35f), 0.99f)
         assertThrows(PageRecognitionException::class.java) { TableCandidateAssembler().assemble("page", image, grid, header + cross) }
     }
+
+    @Test fun `text centered on grid stroke cannot disappear from candidate data`() {
+        val image = GrayImage(width, height, pixels())
+        val grid = GridDetector().detect(image)
+        val header = (0..3).map { evidence(0, it, "字段$it") }
+        val onStroke = TextEvidence("123", SourceRegion(165f / width, .30f, 175f / width, .35f), .99f)
+        assertThrows(PageRecognitionException::class.java) {
+            TableCandidateAssembler().assemble("page", image, grid, header + evidence(1, 0, "001") + onStroke)
+        }
+    }
 }

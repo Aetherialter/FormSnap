@@ -19,8 +19,6 @@ import com.formsnap.app.data.source.SourceImageLoader
 import com.formsnap.app.domain.model.SourceDocument
 import com.formsnap.app.domain.model.SourceRegion
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 private sealed interface ImageState {
     data object Loading : ImageState
@@ -34,17 +32,7 @@ fun SourceImagePane(source: SourceDocument?, region: SourceRegion?, loader: Sour
         value = ImageState.Loading
         value = try {
             if (source == null) ImageState.Error else {
-                val original = loader.load(source.sourceUri, 1600)
-                val image = withContext(Dispatchers.Default) {
-                    if (region == null) original else {
-                        val left = (region.left * original.width).toInt().coerceIn(0, original.width - 1)
-                        val top = (region.top * original.height).toInt().coerceIn(0, original.height - 1)
-                        val right = (region.right * original.width).toInt().coerceIn(left + 1, original.width)
-                        val bottom = (region.bottom * original.height).toInt().coerceIn(top + 1, original.height)
-                        Bitmap.createBitmap(original, left, top, right - left, bottom - top).also { if (it !== original) original.recycle() }
-                    }
-                }
-                ImageState.Ready(image)
+                ImageState.Ready(loader.load(source.sourceUri, 1600, region))
             }
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { ImageState.Error }

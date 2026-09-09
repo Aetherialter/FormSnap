@@ -62,4 +62,11 @@ class XlsxWriterTest {
         assertTrue(sheet.contains("<c r=\"A2\"><v>512</v></c>"))
         assertTrue(sheet.contains("<row r=\"3\">"))
     }
+
+    @Test fun `literal OOXML escape looking text is protected from Excel character decoding`() {
+        val data = dataset()
+        val row = data.rows.single().let { it.copy(cells = it.cells.map { cell -> cell.copy(confirmedValue = "asset_x0041_ _x005F_") }) }
+        val sheet = write(data.copy(rows = listOf(row))).getValue("xl/worksheets/sheet1.xml")
+        assertTrue(sheet.contains("asset_x005F_x0041_ _x005F_x005F_"))
+    }
 }

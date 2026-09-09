@@ -8,6 +8,15 @@ data class TextEvidence(val text: String, val region: SourceRegion, val confiden
 /** Uses actual text boxes inside detected grid cells; never invents text for empty/unreadable ink. */
 class TableCandidateAssembler {
     fun assemble(sourceId: String, image: GrayImage, grid: TableGrid, text: List<TextEvidence>): CandidatePage {
+        val regions = (0 until grid.rows).flatMap { row -> (0 until grid.columns).map { col -> grid.region(row, col) } }
+        // Text centered on the excluded grid-stroke margin must not silently disappear.
+        if (text.any { word ->
+                val x = (word.region.left + word.region.right) / 2
+                val y = (word.region.top + word.region.bottom) / 2
+                x * image.width in grid.xs.first().toFloat()..grid.xs.last().toFloat() &&
+                    y * image.height in grid.ys.first().toFloat()..grid.ys.last().toFloat() &&
+                    regions.none { x in it.left..it.right && y in it.top..it.bottom }
+            }) throw PageRecognitionException(IssueCode.STRUCTURE_WARNING, "文字位于表格边线上，无法可靠确定归属，请检查页面。")
         if (text.any { word ->
                 val y = (word.region.top + word.region.bottom) / 2 * image.height
                 val x = (word.region.left + word.region.right) / 2 * image.width

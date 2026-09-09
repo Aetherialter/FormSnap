@@ -7,6 +7,7 @@ import android.graphics.Color
 import androidx.exifinterface.media.ExifInterface
 import androidx.test.core.app.ApplicationProvider
 import com.formsnap.app.data.source.SourceImageLoader
+import com.formsnap.app.domain.model.SourceRegion
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Before
@@ -71,5 +72,21 @@ class SourceImageLoaderTest {
         assertTrue(runCatching { loader.load(uri) }.isFailure)
         provider.unavailable = true
         assertTrue(runCatching { loader.load(uri) }.isFailure)
+    }
+
+    @Test fun `review crop locates actual colored evidence after EXIF rotation and downsampling`() = runBlocking {
+        image()
+        ExifInterface(provider.original).apply {
+            setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_ROTATE_90.toString())
+            saveAttributes()
+        }
+        val before = provider.original.readBytes()
+        val crop = loader.load(uri, 400, SourceRegion(.75f, 0f, 1f, .125f))
+        assertEquals(50, crop.width)
+        assertEquals(50, crop.height)
+        val pixel = crop.getPixel(25, 25)
+        assertTrue(Color.red(pixel) > 200 && Color.green(pixel) < 80)
+        crop.recycle()
+        assertArrayEquals(before, provider.original.readBytes())
     }
 }

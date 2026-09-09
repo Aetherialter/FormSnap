@@ -117,3 +117,15 @@ WorkManager 使用 Configuration.Provider 官方按需初始化，状态读取�
 2026-09-09：110 项自动测试通过，无失败或跳过；Debug、测试 APK 和 Lint 成功（0 errors、18 warnings）。
 新增 XLSX XML/ZIP 4 项、导出 Provider/并发数据变化/访问丢失 3 项、工作流状态与回调恢复 3 项、真实 App/Room/导航/文件保存闭环 1 项，以及非法编辑仍阻塞 1 项。
 UI 测试使用明确标注的合成候选，未替代实际 ML Kit；测试发现并修复了后台初始化错误、恢复检查期间回调丢失风险与编辑绕过新规则问题。
+
+## 阶段 6：基准与最终加固
+
+建立明确正确答案的 100×8 合成候选基准，经过真实 Room、批处理协调、Validation、模拟复核、数据库重开和 XLSX XML 独立解析。
+检出 19/19 个预置异常目标，23 条底层 Issue 聚合为 19 项；复核率 2.375%，模拟复核后 800 个最终值与答案一致。真实 OCR/手写质量不能据此推断。
+补齐边线中心文字不能被静默丢弃、XLSX 字面量 `_xHHHH_` 不能被 Excel 改写的保护。
+将复核局部裁剪纳入同一个有界图像加载器，在原生图形测试中验证 EXIF 旋转和缩小后准确定位实色区域；仍无磁盘图像缓存。
+
+最终 114 项测试全过，Debug / 测试 APK / Lint 成功（0 errors、18 warnings）。
+设备由“无设备”转为可连接，但安装返回 `INSTALL_FAILED_ABORTED: User rejected permissions`；未反复重试或绕过授权，真实设备验收仍未完成。
+已更新开发 README，新增 V1 验证记录和 Documentation Gap Report；三份外部产品文档 SHA-256 均未变化。
+细节和可复现命令见 [V1 验证记录](v1-verification.md)。完成本阶段后停止新增产品功能。

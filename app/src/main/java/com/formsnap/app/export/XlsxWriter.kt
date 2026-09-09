@@ -58,7 +58,7 @@ class XlsxWriter {
                 require(value.text.length <= 32767) { "Excel cell text limit exceeded" }
                 val reference = "${columnName(column)}${row + 1}"
                 if (value.number) append("<c r=\"$reference\"><v>${escape(value.text.removePrefix("+"))}</v></c>")
-                else append("<c r=\"$reference\" t=\"inlineStr\"><is><t xml:space=\"preserve\">${escape(value.text)}</t></is></c>")
+                else append("<c r=\"$reference\" t=\"inlineStr\"><is><t xml:space=\"preserve\">${escape(literalText(value.text))}</t></is></c>")
             }
             append("</row>")
         }
@@ -70,6 +70,10 @@ class XlsxWriter {
         var result = ""
         while (value > 0) { value--; result = ('A' + value % 26) + result; value /= 26 }
         return result
+    }
+    // OOXML interprets _xHHHH_ even inside inline strings. Escape its leading underscore.
+    private fun literalText(value: String): String = value.replace(Regex("_[xX][0-9a-fA-F]{4}_")) {
+        "_x005F_" + it.value.drop(1)
     }
     private fun escape(value: String): String = buildString {
         value.codePoints().forEach { code ->

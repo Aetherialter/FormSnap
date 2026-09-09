@@ -7,6 +7,7 @@ import android.graphics.Matrix
 import android.net.Uri
 import android.os.CancellationSignal
 import androidx.exifinterface.media.ExifInterface
+import com.formsnap.app.domain.model.SourceRegion
 import java.io.IOException
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.Dispatchers
@@ -15,14 +16,14 @@ import kotlinx.coroutines.withTimeout
 
 /** Bounded in-memory decoding only. Coordinates refer to the EXIF-upright original image. */
 class SourceImageLoader(private val resolver: ContentResolver) {
-    suspend fun load(uri: String, maxDimension: Int = 2200): Bitmap = withTimeout(30_000) {
+    suspend fun load(uri: String, maxDimension: Int = 2200, region: SourceRegion? = null): Bitmap = withTimeout(30_000) {
         require(maxDimension in 128..2400)
         suspendCancellableCoroutine { continuation ->
             val signal = CancellationSignal()
             continuation.invokeOnCancellation { signal.cancel() }
             Dispatchers.IO.dispatch(EmptyCoroutineContext) {
                 try {
-                    val bitmap = decode(uri, maxDimension, signal)
+                    val bitmap = decode(uri, maxDimension, signal, region)
                     continuation.resume(bitmap) { _, image, _ -> image.recycle() }
                 } catch (failure: Exception) {
                     if (continuation.isActive) continuation.resumeWith(Result.failure(failure))
@@ -31,7 +32,7 @@ class SourceImageLoader(private val resolver: ContentResolver) {
         }
     }
 
-    private fun decode(value: String, maxDimension: Int, signal: CancellationSignal): Bitmap {
+    private fun decode(value: String, maxDimension: Int, signal: CancellationSignal, region: SourceRegion?): Bitmap {
         val uri = Uri.parse(value)
         require(uri.scheme == ContentResolver.SCHEME_CONTENT)
         fun <T> read(block: (java.io.InputStream) -> T): T {
@@ -61,10 +62,17 @@ class SourceImageLoader(private val resolver: ContentResolver) {
                 ExifInterface.ORIENTATION_ROTATE_270 -> setRotate(270f)
             }
         }
-        return try {
-            val upright = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
-            if (upright !== decoded) decoded.recycle()
-            upright
+        val upright = try {
+            Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
         } catch (failure: Throwable) { decoded.recycle(); throw failure }
+        if (upright !== decoded) decoded.recycle()
+        if (region == null) return upright
+        return try {
+            val left = (region.left * upright.width).toInt().coerceIn(0, upright.width - 1)
+            val top = (region.top * upright.height).toInt().coerceIn(0, upright.height - 1)
+            val right = (region.right * upright.width).toInt().coerceIn(left + 1, upright.width)
+            val bottom = (region.bottom * upright.height).toInt().coerceIn(top + 1, upright.height)
+            Bitmap.createBitmap(upright, left, top, right - left, bottom - top).also { if (it !== upright) upright.recycle() }
+        } catch (failure: Throwable) { upright.recycle(); throw failure }
     }
 }
