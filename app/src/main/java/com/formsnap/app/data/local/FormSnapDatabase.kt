@@ -7,12 +7,18 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [TaskEntity::class, SourceEntity::class], version = 2, exportSchema = true)
+@Database(
+    entities = [TaskEntity::class, SourceEntity::class, SchemaEntity::class, FieldEntity::class, RowEntity::class, CellEntity::class],
+    version = 3, exportSchema = true,
+)
 abstract class FormSnapDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun sourceDao(): SourceDao
+    abstract fun structuredDao(): StructuredDao
 
     companion object {
+        val MIGRATION_2_3: Migration = StructuredMigration
+        val ALL_MIGRATIONS get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
@@ -36,6 +42,6 @@ abstract class FormSnapDatabase : RoomDatabase() {
             context.applicationContext,
             FormSnapDatabase::class.java,
             "formsnap.db",
-        ).addMigrations(MIGRATION_1_2).build()
+        ).addMigrations(*ALL_MIGRATIONS).build()
     }
 }

@@ -21,7 +21,7 @@ class StructuredModelsTest {
         assertEquals("S12", confirmed.normalizedValue)
         assertEquals("512", confirmed.confirmedValue)
         assertNull(candidate.confirmedValue)
-        assertEquals(CellReviewStatus.NEEDS_REVIEW, candidate.reviewStatus)
+        assertEquals(CellReviewStatus.UNVALIDATED, candidate.reviewStatus)
     }
 
     @Test

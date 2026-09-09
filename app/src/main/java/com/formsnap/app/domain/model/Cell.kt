@@ -12,8 +12,9 @@ data class Cell(
     val rawValue: String?,
     val normalizedValue: String? = null,
     val confirmedValue: String? = null,
-    val reviewStatus: CellReviewStatus = CellReviewStatus.NEEDS_REVIEW,
+    val reviewStatus: CellReviewStatus = CellReviewStatus.UNVALIDATED,
     val source: CellSource? = null,
+    val reliability: RecognitionReliability = RecognitionReliability.UNKNOWN,
 ) {
     init {
         require(id.isNotBlank() && rowId.isNotBlank() && fieldId.isNotBlank())
@@ -25,4 +26,7 @@ data class Cell(
     }
 }
 
-enum class CellReviewStatus { AUTO_CONFIRMED, NEEDS_REVIEW, MANUAL_CONFIRMED, UNREADABLE }
+enum class CellReviewStatus { UNVALIDATED, AUTO_CONFIRMED, NEEDS_REVIEW, MANUAL_CONFIRMED, UNREADABLE }
+
+/** Evidence supplied by an adapter, not a claim that the candidate is correct. */
+enum class RecognitionReliability { UNKNOWN, HIGH, LOW, UNREADABLE }

@@ -18,6 +18,7 @@ import java.time.Instant
     indices = [
         Index(value = ["taskId", "sourceUri"], unique = true),
         Index(value = ["taskId", "pageIndex"], unique = true),
+        Index(value = ["id", "taskId"], unique = true),
     ],
 )
 data class SourceEntity(
