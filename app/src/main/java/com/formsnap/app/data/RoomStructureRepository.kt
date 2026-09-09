@@ -19,7 +19,7 @@ class RoomStructureRepository(private val database: FormSnapDatabase,private val
     suspend fun record(taskId: String,proposal: StructureProposal,confirmed: Boolean,discard: Boolean=false) = database.withTransaction {
         require(database.sourceDao().getSources(taskId).any { it.id==proposal.sourceId })
         val old=dao.get(taskId,proposal.sourceId)
-        dao.save(PageStructureEntity(proposal.sourceId,taskId,StructureCodec.encode(proposal),confirmed,(old?.revision ?: 0)+1,discard))
+        dao.save(PageStructureEntity(proposal.sourceId,taskId,StructureCodec.encode(proposal),confirmed,(old?.revision ?: 0)+1,if(confirmed)false else discard))
         if(!confirmed && proposal.grid.outcome!=StructureOutcome.AUTO_ACCEPTED)database.qualityDao().savePage(PageResultEntity(proposal.sourceId,taskId,"STRUCTURE_REVIEW_REQUIRED",
             IssueCode.STRUCTURE_REVIEW_REQUIRED.name,"已找到表格，请确认表头、分割及合并区域。",clock.millis()))
     }
@@ -32,7 +32,12 @@ class RoomStructureRepository(private val database: FormSnapDatabase,private val
                 val aligned=recognizer.revise(source,TemplateAlignment.grid(template,proposal),proposal.text)
                 if(!TemplateAlignment.sameHeaders(template.headerPaths,aligned.headerPaths))throw SchemaMismatchException()
                 // Explicitly confirmed topology may be reused; value ambiguities remain separate issues.
-                proposal=aligned.copy(grid=aligned.grid.copy(outcome=StructureOutcome.AUTO_ACCEPTED))
+                val newBodyMerge=aligned.grid.merged.filter { it.row>=aligned.grid.headerEnd } !=
+                    template.grid.merged.filter { it.row>=template.grid.headerEnd }
+                val needsReview=aligned.assignmentErrors>0 || newBodyMerge
+                proposal=aligned.copy(grid=aligned.grid.copy(
+                    outcome=if(needsReview)StructureOutcome.STRUCTURE_REVIEW_REQUIRED else StructureOutcome.AUTO_ACCEPTED,
+                    reasons=if(needsReview)aligned.grid.reasons+"此页存在新的合并或文字归属歧义，请单独核对。" else aligned.grid.reasons))
             } catch (_: SchemaMismatchException) {
                 record(source.taskId,proposal.copy(grid=proposal.grid.copy(outcome=StructureOutcome.STRUCTURE_REVIEW_REQUIRED,
                     reasons=proposal.grid.reasons+"此页与已有表头或列结构不同，请核对。")),false,discardHumanWork)
@@ -50,9 +55,9 @@ class RoomStructureRepository(private val database: FormSnapDatabase,private val
         check(database.qualityDao().pages(taskId).none { it.state=="RUNNING" })
         val source=database.sourceDao().getSources(taskId).single { it.id==sourceId }
         check(source.status==SourceStatus.AVAILABLE.name)
-        require(paths.size==grid.columns && paths.all { it.isNotEmpty() && it.all(String::isNotBlank) })
+        require(paths.isEmpty() || (paths.size==grid.columns && paths.all { it.isNotEmpty() && it.all(String::isNotBlank) }))
         val proposal=recognizer.revise(source.toDomain(),grid,StructureCodec.decode(old.payload).text)
-        return old to proposal.copy(headerPaths=paths)
+        return old to if(paths.isEmpty())proposal else proposal.copy(headerPaths=paths)
     }
     override suspend fun saveDraft(taskId: String,sourceId: String,grid: TableGrid,paths: List<List<String>>,revision: Int): StoredStructure {
         val (old,editedProposal)=edited(taskId,sourceId,grid,paths,revision)

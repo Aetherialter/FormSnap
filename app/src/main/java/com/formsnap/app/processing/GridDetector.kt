@@ -77,12 +77,18 @@ class GridDetector {
         fun root(value: Int): Int { var x=value; while(parent[x]!=x) { parent[x]=parent[parent[x]]; x=parent[x] }; return x }
         fun union(a: Int,b: Int) { parent[root(a)]=root(b) }
         fun coverage(x1: Float,y1: Float,x2: Float,y2: Float): Double {
-            val steps=max(abs(x2-x1),abs(y2-y1)).toInt().coerceAtLeast(1); var hits=0
-            for(i in 3 until steps-2) {
+            val steps=max(abs(x2-x1),abs(y2-y1)).toInt().coerceAtLeast(1)
+            // Line voting uses a bounded, downsampled image; allow its pixel quantization here.
+            val radius=max(1,ceil(max(image.width,image.height)/1000.0).toInt())
+            val samples=(3 until steps-2).map { i ->
                 val t=i.toFloat()/steps; val p=base.toImage(x1+(x2-x1)*t,y1+(y2-y1)*t)
-                if((-1..1).any { a -> (-1..1).any { b -> image.dark((p.x*image.width).roundToInt()+a,(p.y*image.height).roundToInt()+b) } })hits++
+                (-radius..radius).any { a -> (-radius..radius).any { b -> image.dark((p.x*image.width).roundToInt()+a,(p.y*image.height).roundToInt()+b) } }
             }
-            return hits.toDouble()/(steps-5).coerceAtLeast(1)
+            val rate=samples.count { it }.toDouble()/samples.size.coerceAtLeast(1)
+            val anchored=(samples.takeWhile { it }.size+samples.asReversed().takeWhile { it }.size).toDouble()/samples.size.coerceAtLeast(1)
+            // A label crossing an absent internal edge is not a short ruling. Real partial rules
+            // normally connect to a bordering line, or cover most of the proposed edge.
+            return if(rate<.55 && anchored<.1)0.0 else rate
         }
         var uncertain=false
         for(r in 0 until base.rows)for(c in 1 until base.columns) {

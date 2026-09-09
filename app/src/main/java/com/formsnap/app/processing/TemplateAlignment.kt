@@ -14,6 +14,9 @@ object TemplateAlignment {
             observed.any { x -> expected.minOf { abs(it-x) }>.025f })throw SchemaMismatchException()
         // Close columns must also retain order; multiple observed lines cannot match one template edge.
         if(observed.map { x -> expected.indices.minBy { abs(expected[it]-x) } }.distinct().size!=observed.size)throw SchemaMismatchException()
+        // A missing separator changes span indices. Do not silently drop body merges while
+        // inserting template columns; this combination needs a page-level structure decision.
+        if(a.columns!=b.columns && b.merged.any { it.row>=a.headerEnd })throw SchemaMismatchException()
         val xs=expected.map { (b.xs.first()+it*(b.xs.last()-b.xs.first())).roundToInt() }
         val headerMerges=a.merged.filter { it.row<a.headerEnd }
         val bodyMerges=if(a.columns==b.columns)b.merged.filter { it.row>=a.headerEnd } else emptyList()

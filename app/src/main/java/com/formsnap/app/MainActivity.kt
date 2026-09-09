@@ -27,7 +27,7 @@ class MainActivity : ComponentActivity() {
                     }
                 })
                 val app = application as FormSnapApplication
-                FormSnapApp(model, app.sourceRepository, app.qualityRepository, app.processingScheduler, app.imageLoader, app.exporter)
+                FormSnapApp(model, app.sourceRepository, app.qualityRepository, app.processingScheduler, app.imageLoader, app.exporter, app.structureRepository)
             }
         }
     }

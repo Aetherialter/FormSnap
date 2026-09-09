@@ -63,4 +63,6 @@ dependencies {
 
 tasks.withType<Test>().configureEach {
     systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")
+    inputs.files(rootProject.fileTree("real-world-table-fixtures") { include("*.png", "*.json") })
+        .withPropertyName("printedStructureFixtures")
 }

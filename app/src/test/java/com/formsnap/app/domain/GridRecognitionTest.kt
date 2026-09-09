@@ -78,4 +78,14 @@ class GridRecognitionTest {
             TableCandidateAssembler().assemble("page", image, grid, header + evidence(1, 0, "001") + onStroke)
         }
     }
+
+    @Test fun `digits in Chinese header and repeated hierarchy names are retained`() {
+        val image=GrayImage(width,height,pixels())
+        val grid=GridDetector().detect(image)
+        val text=(0..3).flatMap { col -> listOf(evidence(0,col,"统计"),evidence(1,col,"统计"),evidence(2,col,"项目3"),evidence(3,col,"300")) }
+        val proposal=TableCandidateAssembler().propose("page",image,grid,text)
+        assertEquals(3,proposal.grid.headerEnd)
+        assertEquals(listOf("统计","统计","项目3"),proposal.headerPaths[0])
+        assertEquals(StructureOutcome.STRUCTURE_REVIEW_REQUIRED,proposal.grid.outcome)
+    }
 }

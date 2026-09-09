@@ -63,6 +63,8 @@ class WorkflowFlowTest {
         compose.onNodeWithText("查看最终数据").performClick()
         compose.onNodeWithTag("searchRecords").performTextInput("512")
         compose.onNodeWithText("2 条记录 · 0 项待确认").assertIsDisplayed()
+        // Dataset and task status are separate Room flows; wait for the export gate to catch up.
+        compose.waitUntil(10_000) { compose.onAllNodes(hasTestTag("exportXlsx") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("exportXlsx").assertIsEnabled().performClick()
         var requestCode: Int? = null
         var request: Intent? = null

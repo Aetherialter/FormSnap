@@ -36,7 +36,10 @@ class TableCandidateAssembler {
         val reasons=grid.reasons.toMutableList()
         if(inferHeader) {
             // Text may suggest the header depth, but never creates or shifts a separator.
-            val firstData=(1..minOf(6,grid.rows-1)).firstOrNull { row -> logical.any { it.shape.row==row && it.candidate.rawValue.orEmpty().any(Char::isDigit) } }
+            val firstData=(1..minOf(6,grid.rows-1)).firstOrNull { row -> logical.any {
+                val value=it.candidate.rawValue.orEmpty()
+                it.shape.row==row && value.any(Char::isDigit) && value.none { ch -> ch.code in 0x3400..0x9FFF }
+            } }
             if(firstData!=null && firstData>depth)depth=firstData
             if(depth>1 || firstData==null)reasons+="表头层级或数据起始行需要核对。"
         }
@@ -44,7 +47,7 @@ class TableCandidateAssembler {
         if(errors>0)reasons+="部分文字靠近或跨越边线，确认归属后仍需核对其值。"
         val paths=(0 until grid.columns).map { col ->
             logical.filter { it.shape.contains(it.shape.row,col) && it.shape.row<depth && it.shape.row+it.shape.rowSpan>grid.headerStart }
-                .sortedBy { it.shape.row }.mapNotNull { it.candidate.rawValue?.replace("\n","")?.trim()?.takeIf(String::isNotEmpty) }.distinct()
+                .sortedBy { it.shape.row }.mapNotNull { it.candidate.rawValue?.replace("\n","")?.trim()?.takeIf(String::isNotEmpty) }
                 .ifEmpty { listOf("第${col+1}列") }
         }
         if(logical.any { it.shape.row<depth && it.candidate.reliability!=RecognitionReliability.HIGH } ||

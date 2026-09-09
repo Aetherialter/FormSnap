@@ -79,14 +79,32 @@ internal class LineGeometry {
             for(i in 2 until votes.size-2) {
                 if(votes[i]<minimum || votes[i]<votes[i-1] || votes[i]<=votes[i+1])continue
                 val intercept=(i-shift).toFloat()
-                val hit=(0 until length).filter { a -> val b=(slope*a+intercept).roundToInt(); b in 0 until breadth && (-1..1).any { d -> if(horizontal)image.dark(a,b+d) else image.dark(b+d,a) } }
-                if(hit.size<minimum || hit.last()-hit.first()<minimum || hit.size.toDouble()/(hit.last()-hit.first()+1)<.55)continue
+                val occupied=BooleanArray(length) { a -> val b=(slope*a+intercept).roundToInt(); b in 0 until breadth && (-1..1).any { d -> if(horizontal)image.dark(a,b+d) else image.dark(b+d,a) } }
+                // Isolated aligned glyph strokes are not line evidence. Preserve long fragments,
+                // including either side of a gap, before measuring coverage or ranking directions.
+                val hit=mutableListOf<Int>()
+                var start=0
+                var longest=0
+                while(start<length) {
+                    if(!occupied[start]) { start++; continue }
+                    var end=start+1
+                    while(end<length && occupied[end])end++
+                    longest=max(longest,end-start)
+                    if(end-start>=12)for(a in start until end)hit+=a
+                    start=end
+                }
+                if(longest<max(24.0,minimum*.2) || hit.size<minimum || hit.last()-hit.first()<minimum || hit.size.toDouble()/(hit.last()-hit.first()+1)<.55)continue
                 candidates+=Line(slope,intercept,hit.first(),hit.last(),hit.size)
             }
         }
         val selected=mutableListOf<Line>()
         for(line in candidates.sortedWith(compareByDescending<Line>{it.score}.thenBy {abs(it.slope)})) {
-            if(selected.none { abs(it.at(length/2f)-line.at(length/2f))<6 && abs(it.slope-line.slope)*length<20 })selected+=line
+            if(selected.none {
+                val begin=max(it.start,line.start).toFloat();val end=min(it.end,line.end).toFloat()
+                val sameFragment=end-begin>=min(it.end-it.start,line.end-line.start)*.8f &&
+                    max(abs(it.at(begin)-line.at(begin)),abs(it.at(end)-line.at(end)))<5
+                sameFragment || (abs(it.at(length/2f)-line.at(length/2f))<6 && abs(it.slope-line.slope)*length<20)
+            })selected+=line
             if(selected.size>=600)break
         }
         return selected

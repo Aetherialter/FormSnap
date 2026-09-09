@@ -15,7 +15,7 @@ import com.formsnap.app.validation.*
 
 @Composable
 fun ReviewScreen(model: WorkflowViewModel, sources: List<SourceDocument>, images: SourceImageLoader,
-    onBack: () -> Unit, onFields: () -> Unit, onSources: () -> Unit, onData: () -> Unit) {
+    onBack: () -> Unit, onFields: () -> Unit, onSources: () -> Unit, onData: () -> Unit, onStructure: () -> Unit) {
     val state by model.state.collectAsStateWithLifecycle()
     val busy by model.busy.collectAsStateWithLifecycle()
     val activity by model.activity.collectAsStateWithLifecycle()
@@ -50,6 +50,8 @@ fun ReviewScreen(model: WorkflowViewModel, sources: List<SourceDocument>, images
                         Text(source?.let { "第 ${it.pageIndex + 1} 页 · ${it.displayName.orEmpty()}" } ?: "来源页信息暂不可用")
                         SourceImagePane(source, null, images, Modifier.height(220.dp))
                         TextButton(onClick = { openPage = item.targetId }) { Text("查看原始页面") }
+                        if(item.issues.any { it.code==IssueCode.STRUCTURE_REVIEW_REQUIRED || it.code==IssueCode.SCHEMA_MISMATCH })
+                            Button(onClick=onStructure) { Text("确认表格结构") }
                         Button(onClick = onSources) { Text("返回来源页面处理") }
                     }
                     IssueTarget.CELL -> {

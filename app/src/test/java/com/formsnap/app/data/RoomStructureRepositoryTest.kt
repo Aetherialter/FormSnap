@@ -49,6 +49,8 @@ class RoomStructureRepositoryTest {
         db.close(); reopen()
         assertEquals(draft,repository.observe(task.id).first().single())
         val saved=repository.saveDraft(task.id,draft.proposal.sourceId,draft.proposal.grid,draft.proposal.headerPaths,draft.revision)
+        assertEquals(ProcessingSummary(0,0,1),ProcessingRunner(db,recognizer).run(ProcessingRequest(task.id)))
+        assertEquals("Continue must retain saved edits and revision",saved,repository.observe(task.id).first().single())
         try { repository.confirm(task.id,draft.proposal.sourceId,draft.proposal.grid,draft.proposal.headerPaths,draft.revision); fail("Stale edit must be rejected") }
         catch(_: StaleReviewException) { }
         repository.confirm(task.id,saved.proposal.sourceId,saved.proposal.grid,saved.proposal.headerPaths,saved.revision)
@@ -75,6 +77,16 @@ class RoomStructureRepositoryTest {
         assertTrue(RoomQualityRepository(db).revalidate(task.id).issues.any { it.code==IssueCode.SCHEMA_MISMATCH })
         assertFalse(repository.observe(task.id).first().last().confirmed)
     }
+    @Test fun `new body merge on a later page still requires an individual structure decision`() = runTest {
+        val task=seed()
+        ProcessingRunner(db,recognizer).run(ProcessingRequest(task.id))
+        val first=repository.observe(task.id).first().single()
+        repository.confirm(task.id,first.proposal.sourceId,first.proposal.grid,first.proposal.headerPaths,first.revision)
+        recognizer.newBodyMerge=true
+        assertEquals(ProcessingSummary(0,0,1),ProcessingRunner(db,recognizer).run(ProcessingRequest(task.id)))
+        assertEquals(2,RoomStructuredRepository(db).getDataset(task.id)!!.rows.size)
+        assertFalse(repository.observe(task.id).first().last().confirmed)
+    }
     @Test fun `structure replacement cannot discard human values without explicit permission and source removal cascades`() = runTest {
         val task=seed(1)
         ProcessingRunner(db,recognizer).run(ProcessingRequest(task.id))
@@ -87,6 +99,10 @@ class RoomStructureRepositoryTest {
         catch(_: HumanWorkExistsException) { }
         assertEquals("MANUAL",RoomStructuredRepository(db).getDataset(task.id)!!.rows[0].cells[0].confirmedValue)
         repository.confirm(task.id,first.proposal.sourceId,first.proposal.grid,first.proposal.headerPaths,confirmed.revision,discardHumanWork=true)
+        val next=repository.observe(task.id).first().single()
+        RoomQualityRepository(db).decide(task.id,ReviewDecision(IssueTarget.CELL,cell.id,ReviewAction.EDIT,"NEW-MANUAL"))
+        try { repository.confirm(task.id,next.proposal.sourceId,next.proposal.grid,next.proposal.headerPaths,next.revision); fail("Previous override is not permanent consent") }
+        catch(_: HumanWorkExistsException) { }
         sources.removeSource(task.id,first.proposal.sourceId)
         assertTrue(repository.observe(task.id).first().isEmpty())
         assertNull(db.structureDao().template(task.id))
@@ -94,12 +110,14 @@ class RoomStructureRepositoryTest {
 
     private class FixtureRecognizer : StructureRecognizer {
         var mismatch=false
+        var newBodyMerge=false
         private val image=GrayImage(1200,800,ByteArray(1200*800){255.toByte()})
         override suspend fun inspect(source: SourceDocument): StructureProposal {
             val delta=if(source.pageIndex==0)0 else 30
             val scale=if(source.pageIndex==0)1f else 1.1f
             val grid=TableGrid(listOf(60,250,500).map { (it*scale).toInt()+delta },listOf(50,130,210,290,370).map { (it*scale).toInt()+delta },1200,800,
-                merged=listOf(GridCell(0,0,1,2)),headerEnd=2,outcome=StructureOutcome.STRUCTURE_REVIEW_REQUIRED,reasons=listOf("合并表头需确认"))
+                merged=listOf(GridCell(0,0,1,2)) + if(newBodyMerge && source.pageIndex>0)listOf(GridCell(2,0,2,1))else emptyList(),
+                headerEnd=2,outcome=StructureOutcome.STRUCTURE_REVIEW_REQUIRED,reasons=listOf("合并表头需确认"))
             val words=grid.cells.map { cell ->
                 val region=grid.region(cell)
                 val text=when(cell.row) { 0 -> if(mismatch && source.pageIndex>0)"其他" else "业务"; 1 -> if(cell.column==0)"编号" else "数值"; else -> "${source.pageIndex*100+cell.row*10+cell.column}" }

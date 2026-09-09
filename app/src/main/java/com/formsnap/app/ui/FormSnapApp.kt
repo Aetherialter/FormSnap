@@ -62,6 +62,7 @@ import com.formsnap.app.domain.repository.SourceRepository
 import com.formsnap.app.domain.repository.QualityRepository
 import com.formsnap.app.data.source.SourceImageLoader
 import com.formsnap.app.processing.ProcessingGateway
+import com.formsnap.app.processing.StructureRepository
 import com.formsnap.app.export.TaskExporter
 import com.formsnap.app.review.ReviewQueue
 import androidx.compose.material3.AlertDialog
@@ -69,7 +70,7 @@ import kotlinx.coroutines.flow.catch
 
 @Composable
 fun FormSnapApp(model: TaskViewModel, sourceRepository: SourceRepository, qualityRepository: QualityRepository,
-    processing: ProcessingGateway, images: SourceImageLoader, exporter: TaskExporter) {
+    processing: ProcessingGateway, images: SourceImageLoader, exporter: TaskExporter, structures: StructureRepository) {
     val navigation = rememberNavController()
     val tasks by model.tasks.collectAsStateWithLifecycle()
     val name by model.taskName.collectAsStateWithLifecycle()
@@ -133,7 +134,16 @@ fun FormSnapApp(model: TaskViewModel, sourceRepository: SourceRepository, qualit
                 onReview = { navigation.navigate("task/$id/review") },
                 onFields = { navigation.navigate("task/$id/fields") },
                 onData = { navigation.navigate("task/$id/data") },
+                onStructure = { navigation.navigate("task/$id/structure") },
             )
+        }
+        composable("task/{id}/structure", arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+            val id=entry.arguments?.getString("id").orEmpty()
+            val structureModel: StructureViewModel = viewModel(viewModelStoreOwner=entry,factory=viewModelFactory {
+                initializer { StructureViewModel(id,structures,processing,createSavedStateHandle()) }
+            })
+            val pages by remember(id) { sourceRepository.observeSources(id).catch { emit(emptyList()) } }.collectAsStateWithLifecycle(initialValue=emptyList())
+            StructureScreen(structureModel,pages,images,{navigation.popBackStack()},{navigation.navigate("task/$id/fields")})
         }
         listOf("review", "fields", "data").forEach { screen ->
             composable("task/{id}/$screen", arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
@@ -148,7 +158,8 @@ fun FormSnapApp(model: TaskViewModel, sourceRepository: SourceRepository, qualit
                 when (screen) {
                     "fields" -> FieldSettingsScreen(workflow) { navigation.popBackStack() }
                     "review" -> ReviewScreen(workflow, pages, images, { navigation.popBackStack() },
-                        { navigation.navigate("task/$id/fields") }, { navigation.popBackStack("task/{id}", false) }, { navigation.navigate("task/$id/data") })
+                        { navigation.navigate("task/$id/fields") }, { navigation.popBackStack("task/{id}", false) }, { navigation.navigate("task/$id/data") },
+                        { navigation.navigate("task/$id/structure") })
                     "data" -> FinalDataScreen(workflow, pages, images, task?.status in setOf(TaskStatus.READY_TO_EXPORT, TaskStatus.EXPORTED),
                         { navigation.popBackStack() }, { navigation.navigate("task/$id/review") }, { navigation.navigate("task/$id/fields") })
                 }
@@ -266,6 +277,7 @@ private fun TaskDetailScreen(
     onReview: () -> Unit,
     onFields: () -> Unit,
     onData: () -> Unit,
+    onStructure: () -> Unit,
 ) {
     val quality by workflow.state.collectAsStateWithLifecycle()
     val activity by workflow.activity.collectAsStateWithLifecycle()
@@ -293,7 +305,8 @@ private fun TaskDetailScreen(
                         else if (task.status == TaskStatus.PROCESSING) Text("整理尚未完成，可以重新执行。", color = MaterialTheme.colorScheme.error)
                         Button(onClick = { workflow.start() }, enabled = pages.isNotEmpty() && !busy && activity?.busy == false,
                             modifier = Modifier.fillMaxWidth().testTag("startProcessing")) { Text("开始整理 / 继续未完成页面") }
-                        Text("当前适用于边框清晰、横平竖直、无合并单元格的表格。", style = MaterialTheme.typography.bodySmall)
+                        Text("复杂表头、合并区域或缺线可先确认结构，再继续整理。", style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick=onStructure,modifier=Modifier.testTag("openStructure")) { Text("确认 / 调整表格结构") }
                         if (data != null) {
                             TextButton(onClick = onFields) { Text("字段设置") }
                             Button(onClick = onReview, modifier = Modifier.fillMaxWidth()) { Text("开始检查") }

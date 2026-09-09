@@ -57,6 +57,19 @@ class ProcessingRunner(
                 currentCoroutineContext().ensureActive()
                 try {
                     if (source.status != SourceStatus.AVAILABLE.name) throw PageRecognitionException(IssueCode.SOURCE_UNAVAILABLE, "来源当前无法访问，请恢复文件或重新添加。")
+                    if(recognizer is StructureRecognizer && request.sourceId==null) {
+                        val draft=database.structureDao().get(taskId,source.id)
+                        if(draft!=null && !draft.confirmed) {
+                            val proposal=com.formsnap.app.data.StructureCodec.decode(draft.payload)
+                            if(proposal.grid.outcome==StructureOutcome.STRUCTURE_REVIEW_REQUIRED) {
+                                // Continue must not overwrite the user's saved separators/header edits.
+                                // An explicit page reprocess is the separate way to obtain new evidence.
+                                database.qualityDao().savePage(PageResultEntity(source.id,taskId,"STRUCTURE_REVIEW_REQUIRED",
+                                    IssueCode.STRUCTURE_REVIEW_REQUIRED.name,"已保存结构草稿，请先确认表头与分割。",clock.millis()))
+                                throw StructureReviewException(proposal)
+                            }
+                        }
+                    }
                     val page = if(recognizer is StructureRecognizer) RoomStructureRepository(database,recognizer).process(source.toDomain(),request.discardHumanWork)
                         else recognizer.recognize(source.toDomain())
                     check(page.sourceDocumentId == source.id) { "Recognizer returned a different source" }
@@ -65,7 +78,7 @@ class ProcessingRunner(
                             page.headers.mapIndexed { i,name -> FieldDefinition(UUID.randomUUID().toString(), name, headerPath=page.headerPaths[i]) }, configurationConfirmed = false)
                         structured.replacePage(taskId, page, request.discardHumanWork)
                         if(recognizer is StructureRecognizer) database.structureDao().get(taskId,source.id)?.let {
-                            database.structureDao().save(it.copy(confirmed=true,revision=it.revision+1))
+                            database.structureDao().save(it.copy(confirmed=true,revision=it.revision+1,discardHumanWork=false))
                         }
                     }
                     succeeded++
