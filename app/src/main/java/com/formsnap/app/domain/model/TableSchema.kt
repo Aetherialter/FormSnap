@@ -32,7 +32,7 @@ data class FieldRules(
 ) {
     init {
         require(pattern == null || pattern.length <= 240)
-        pattern?.let { Regex(it) }
+        pattern?.let { com.formsnap.app.validation.FieldPattern(it) }
         val min = minimum?.toBigDecimal()
         val max = maximum?.toBigDecimal()
         require(min == null || max == null || min <= max)

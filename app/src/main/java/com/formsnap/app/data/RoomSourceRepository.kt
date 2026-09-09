@@ -123,13 +123,14 @@ class RoomSourceRepository(
             if (source.status != status.name) sources.updateStatus(source.id, status.name)
         }
         cleanupUnusedGrants()
+        if (database.structuredDao().schema(taskId) != null) RoomQualityRepository(database).revalidate(taskId)
         Unit
     }
 
     private suspend fun requireEditableTask(taskId: String) {
         val task = checkNotNull(tasks.getTask(taskId)) { "Task does not exist" }
-        check(task.status == TaskStatus.DRAFT.name || task.status == TaskStatus.CAPTURING.name) {
-            "Task is not collecting sources"
+        check(task.status != TaskStatus.PROCESSING.name && database.qualityDao().pages(taskId).none { it.state == "RUNNING" }) {
+            "Wait until processing finishes before changing sources"
         }
     }
 
@@ -139,6 +140,7 @@ class RoomSourceRepository(
             if (hasSources) TaskStatus.CAPTURING.name else TaskStatus.DRAFT.name,
             clock.millis(),
         )
+        if (database.structuredDao().schema(taskId) != null) RoomQualityRepository(database).revalidate(taskId)
     }
 
     /** All persistable read grants in this app belong to source documents. Also recovers crash orphans. */

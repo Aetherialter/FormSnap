@@ -84,8 +84,10 @@ class RoomStructuredRepository(
             }
         }
         dao.deletePageRows(taskId, source.id)
+        database.qualityDao().invalidatePageIssues(taskId, source.id, oldCells.map { it.id })
         dao.insertRows(rows)
         dao.insertCells(cells)
+        database.qualityDao().savePage(PageResultEntity(source.id, taskId, "SUCCEEDED", null, null, clock.millis()))
         // Candidate completion is not validation completion or readiness to export.
         database.taskDao().updateSourceCollection(taskId, TaskStatus.PROCESSING.name, clock.millis())
     }

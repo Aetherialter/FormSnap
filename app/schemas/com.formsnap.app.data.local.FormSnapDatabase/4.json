@@ -1,0 +1,942 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 4,
+    "identityHash": "17353d15d5e201b72ff46ed771abecdf",
+    "entities": [
+      {
+        "tableName": "digitization_tasks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `status` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "source_documents",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `taskId` TEXT NOT NULL, `sourceUri` TEXT NOT NULL, `pageIndex` INTEGER NOT NULL, `status` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `displayName` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`taskId`) REFERENCES `digitization_tasks`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "taskId",
+            "columnName": "taskId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceUri",
+            "columnName": "sourceUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pageIndex",
+            "columnName": "pageIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_source_documents_taskId_sourceUri",
+            "unique": true,
+            "columnNames": [
+              "taskId",
+              "sourceUri"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_source_documents_taskId_sourceUri` ON `${TABLE_NAME}` (`taskId`, `sourceUri`)"
+          },
+          {
+            "name": "index_source_documents_taskId_pageIndex",
+            "unique": true,
+            "columnNames": [
+              "taskId",
+              "pageIndex"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_source_documents_taskId_pageIndex` ON `${TABLE_NAME}` (`taskId`, `pageIndex`)"
+          },
+          {
+            "name": "index_source_documents_id_taskId",
+            "unique": true,
+            "columnNames": [
+              "id",
+              "taskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_source_documents_id_taskId` ON `${TABLE_NAME}` (`id`, `taskId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "digitization_tasks",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "taskId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "table_schemas",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `taskId` TEXT NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`taskId`) REFERENCES `digitization_tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "taskId",
+            "columnName": "taskId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_table_schemas_taskId",
+            "unique": true,
+            "columnNames": [
+              "taskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_table_schemas_taskId` ON `${TABLE_NAME}` (`taskId`)"
+          },
+          {
+            "name": "index_table_schemas_id_taskId",
+            "unique": true,
+            "columnNames": [
+              "id",
+              "taskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_table_schemas_id_taskId` ON `${TABLE_NAME}` (`id`, `taskId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "digitization_tasks",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "taskId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "field_definitions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `schemaId` TEXT NOT NULL, `taskId` TEXT NOT NULL, `position` INTEGER NOT NULL, `name` TEXT NOT NULL, `type` TEXT NOT NULL, `required` INTEGER NOT NULL, `pattern` TEXT, `minimum` TEXT, `maximum` TEXT, `duplicateKey` INTEGER NOT NULL, `detectColumnOutliers` INTEGER NOT NULL, `sourceColumnIndex` INTEGER NOT NULL, `sourceHeader` TEXT NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`schemaId`, `taskId`) REFERENCES `table_schemas`(`id`, `taskId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "schemaId",
+            "columnName": "schemaId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "taskId",
+            "columnName": "taskId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "required",
+            "columnName": "required",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pattern",
+            "columnName": "pattern",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "minimum",
+            "columnName": "minimum",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "maximum",
+            "columnName": "maximum",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "duplicateKey",
+            "columnName": "duplicateKey",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "detectColumnOutliers",
+            "columnName": "detectColumnOutliers",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceColumnIndex",
+            "columnName": "sourceColumnIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceHeader",
+            "columnName": "sourceHeader",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_field_definitions_schemaId_taskId",
+            "unique": false,
+            "columnNames": [
+              "schemaId",
+              "taskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_field_definitions_schemaId_taskId` ON `${TABLE_NAME}` (`schemaId`, `taskId`)"
+          },
+          {
+            "name": "index_field_definitions_schemaId_position",
+            "unique": true,
+            "columnNames": [
+              "schemaId",
+              "position"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_field_definitions_schemaId_position` ON `${TABLE_NAME}` (`schemaId`, `position`)"
+          },
+          {
+            "name": "index_field_definitions_id_schemaId_taskId",
+            "unique": true,
+            "columnNames": [
+              "id",
+              "schemaId",
+              "taskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_field_definitions_id_schemaId_taskId` ON `${TABLE_NAME}` (`id`, `schemaId`, `taskId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "table_schemas",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "schemaId",
+              "taskId"
+            ],
+            "referencedColumns": [
+              "id",
+              "taskId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "table_rows",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `taskId` TEXT NOT NULL, `schemaId` TEXT NOT NULL, `sourceDocumentId` TEXT NOT NULL, `originalRowIndex` INTEGER NOT NULL, `excluded` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`schemaId`, `taskId`) REFERENCES `table_schemas`(`id`, `taskId`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`sourceDocumentId`, `taskId`) REFERENCES `source_documents`(`id`, `taskId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "taskId",
+            "columnName": "taskId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "schemaId",
+            "columnName": "schemaId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceDocumentId",
+            "columnName": "sourceDocumentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalRowIndex",
+            "columnName": "originalRowIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "excluded",
+            "columnName": "excluded",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_table_rows_schemaId_taskId",
+            "unique": false,
+            "columnNames": [
+              "schemaId",
+              "taskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_table_rows_schemaId_taskId` ON `${TABLE_NAME}` (`schemaId`, `taskId`)"
+          },
+          {
+            "name": "index_table_rows_sourceDocumentId_taskId",
+            "unique": false,
+            "columnNames": [
+              "sourceDocumentId",
+              "taskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_table_rows_sourceDocumentId_taskId` ON `${TABLE_NAME}` (`sourceDocumentId`, `taskId`)"
+          },
+          {
+            "name": "index_table_rows_sourceDocumentId_originalRowIndex",
+            "unique": true,
+            "columnNames": [
+              "sourceDocumentId",
+              "originalRowIndex"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_table_rows_sourceDocumentId_originalRowIndex` ON `${TABLE_NAME}` (`sourceDocumentId`, `originalRowIndex`)"
+          },
+          {
+            "name": "index_table_rows_id_schemaId_taskId_sourceDocumentId",
+            "unique": true,
+            "columnNames": [
+              "id",
+              "schemaId",
+              "taskId",
+              "sourceDocumentId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_table_rows_id_schemaId_taskId_sourceDocumentId` ON `${TABLE_NAME}` (`id`, `schemaId`, `taskId`, `sourceDocumentId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "table_schemas",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "schemaId",
+              "taskId"
+            ],
+            "referencedColumns": [
+              "id",
+              "taskId"
+            ]
+          },
+          {
+            "table": "source_documents",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sourceDocumentId",
+              "taskId"
+            ],
+            "referencedColumns": [
+              "id",
+              "taskId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "cells",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `rowId` TEXT NOT NULL, `fieldId` TEXT NOT NULL, `schemaId` TEXT NOT NULL, `taskId` TEXT NOT NULL, `sourceDocumentId` TEXT NOT NULL, `originalColumnIndex` INTEGER NOT NULL, `rawValue` TEXT, `normalizedValue` TEXT, `confirmedValue` TEXT, `reviewStatus` TEXT NOT NULL, `reliability` TEXT NOT NULL, `regionLeft` REAL NOT NULL, `regionTop` REAL NOT NULL, `regionRight` REAL NOT NULL, `regionBottom` REAL NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`rowId`, `schemaId`, `taskId`, `sourceDocumentId`) REFERENCES `table_rows`(`id`, `schemaId`, `taskId`, `sourceDocumentId`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`fieldId`, `schemaId`, `taskId`) REFERENCES `field_definitions`(`id`, `schemaId`, `taskId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rowId",
+            "columnName": "rowId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fieldId",
+            "columnName": "fieldId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "schemaId",
+            "columnName": "schemaId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "taskId",
+            "columnName": "taskId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceDocumentId",
+            "columnName": "sourceDocumentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalColumnIndex",
+            "columnName": "originalColumnIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rawValue",
+            "columnName": "rawValue",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "normalizedValue",
+            "columnName": "normalizedValue",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "confirmedValue",
+            "columnName": "confirmedValue",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "reviewStatus",
+            "columnName": "reviewStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reliability",
+            "columnName": "reliability",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "regionLeft",
+            "columnName": "regionLeft",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "regionTop",
+            "columnName": "regionTop",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "regionRight",
+            "columnName": "regionRight",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "regionBottom",
+            "columnName": "regionBottom",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_cells_rowId_schemaId_taskId_sourceDocumentId",
+            "unique": false,
+            "columnNames": [
+              "rowId",
+              "schemaId",
+              "taskId",
+              "sourceDocumentId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_cells_rowId_schemaId_taskId_sourceDocumentId` ON `${TABLE_NAME}` (`rowId`, `schemaId`, `taskId`, `sourceDocumentId`)"
+          },
+          {
+            "name": "index_cells_fieldId_schemaId_taskId",
+            "unique": false,
+            "columnNames": [
+              "fieldId",
+              "schemaId",
+              "taskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_cells_fieldId_schemaId_taskId` ON `${TABLE_NAME}` (`fieldId`, `schemaId`, `taskId`)"
+          },
+          {
+            "name": "index_cells_taskId",
+            "unique": false,
+            "columnNames": [
+              "taskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_cells_taskId` ON `${TABLE_NAME}` (`taskId`)"
+          },
+          {
+            "name": "index_cells_rowId_fieldId",
+            "unique": true,
+            "columnNames": [
+              "rowId",
+              "fieldId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_cells_rowId_fieldId` ON `${TABLE_NAME}` (`rowId`, `fieldId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "table_rows",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "rowId",
+              "schemaId",
+              "taskId",
+              "sourceDocumentId"
+            ],
+            "referencedColumns": [
+              "id",
+              "schemaId",
+              "taskId",
+              "sourceDocumentId"
+            ]
+          },
+          {
+            "table": "field_definitions",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "fieldId",
+              "schemaId",
+              "taskId"
+            ],
+            "referencedColumns": [
+              "id",
+              "schemaId",
+              "taskId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "page_results",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sourceId` TEXT NOT NULL, `taskId` TEXT NOT NULL, `state` TEXT NOT NULL, `problemCode` TEXT, `message` TEXT, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`sourceId`), FOREIGN KEY(`sourceId`, `taskId`) REFERENCES `source_documents`(`id`, `taskId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "taskId",
+            "columnName": "taskId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "problemCode",
+            "columnName": "problemCode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "message",
+            "columnName": "message",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sourceId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_page_results_sourceId_taskId",
+            "unique": false,
+            "columnNames": [
+              "sourceId",
+              "taskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_page_results_sourceId_taskId` ON `${TABLE_NAME}` (`sourceId`, `taskId`)"
+          },
+          {
+            "name": "index_page_results_taskId",
+            "unique": false,
+            "columnNames": [
+              "taskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_page_results_taskId` ON `${TABLE_NAME}` (`taskId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "source_documents",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sourceId",
+              "taskId"
+            ],
+            "referencedColumns": [
+              "id",
+              "taskId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "validation_issues",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `taskId` TEXT NOT NULL, `scope` TEXT NOT NULL, `target` TEXT NOT NULL, `targetId` TEXT NOT NULL, `code` TEXT NOT NULL, `fingerprint` TEXT NOT NULL, `message` TEXT NOT NULL, `relatedRowIds` TEXT NOT NULL, `status` TEXT NOT NULL, `active` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`taskId`) REFERENCES `digitization_tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "taskId",
+            "columnName": "taskId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scope",
+            "columnName": "scope",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "target",
+            "columnName": "target",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetId",
+            "columnName": "targetId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "code",
+            "columnName": "code",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fingerprint",
+            "columnName": "fingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "message",
+            "columnName": "message",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "relatedRowIds",
+            "columnName": "relatedRowIds",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "active",
+            "columnName": "active",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_validation_issues_taskId",
+            "unique": false,
+            "columnNames": [
+              "taskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_validation_issues_taskId` ON `${TABLE_NAME}` (`taskId`)"
+          },
+          {
+            "name": "index_validation_issues_target_targetId",
+            "unique": false,
+            "columnNames": [
+              "target",
+              "targetId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_validation_issues_target_targetId` ON `${TABLE_NAME}` (`target`, `targetId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "digitization_tasks",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "taskId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "review_decisions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `taskId` TEXT NOT NULL, `target` TEXT NOT NULL, `targetId` TEXT NOT NULL, `action` TEXT NOT NULL, `rawValue` TEXT, `previousValue` TEXT, `finalValue` TEXT, `issueCodes` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`taskId`) REFERENCES `digitization_tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "taskId",
+            "columnName": "taskId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "target",
+            "columnName": "target",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetId",
+            "columnName": "targetId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "action",
+            "columnName": "action",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rawValue",
+            "columnName": "rawValue",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "previousValue",
+            "columnName": "previousValue",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "finalValue",
+            "columnName": "finalValue",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "issueCodes",
+            "columnName": "issueCodes",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_review_decisions_taskId",
+            "unique": false,
+            "columnNames": [
+              "taskId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_review_decisions_taskId` ON `${TABLE_NAME}` (`taskId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "digitization_tasks",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "taskId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '17353d15d5e201b72ff46ed771abecdf')"
+    ]
+  }
+}
