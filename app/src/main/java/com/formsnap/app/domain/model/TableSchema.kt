@@ -13,9 +13,11 @@ data class FieldDefinition(
     val name: String,
     val type: FieldType = FieldType.TEXT,
     val rules: FieldRules = FieldRules(),
+    val headerPath: List<String> = listOf(name),
 ) {
     init {
         require(id.isNotBlank() && name.isNotBlank())
+        require(headerPath.isNotEmpty() && headerPath.all { it.isNotBlank() })
     }
 }
 

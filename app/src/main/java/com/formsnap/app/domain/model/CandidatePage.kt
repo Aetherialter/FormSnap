@@ -16,10 +16,12 @@ data class CandidatePage(
     val sourceDocumentId: String,
     val headers: List<String>,
     val rows: List<CandidateRow>,
+    val headerPaths: List<List<String>> = headers.map { listOf(it) },
 ) {
     init {
         require(sourceDocumentId.isNotBlank())
         require(headers.isNotEmpty() && headers.all { it.isNotBlank() })
+        require(headerPaths.size == headers.size && headerPaths.all { it.isNotEmpty() })
         require(rows.isNotEmpty())
         require(rows.map { it.originalRowIndex }.distinct().size == rows.size)
         require(rows.all { it.cells.size == headers.size })

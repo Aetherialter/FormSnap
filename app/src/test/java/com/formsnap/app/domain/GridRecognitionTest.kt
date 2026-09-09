@@ -29,12 +29,14 @@ class GridRecognitionTest {
         assertTrue(grid.region(1, 2).bottom < 0.5f)
     }
 
-    @Test fun `missing segment merged cells and cropped boundaries are rejected`() {
+    @Test fun `missing merged edge and cropped boundaries require structure review`() {
         val merged = pixels().also { data -> for (y in 51 until 130) data[y * width + 170] = 255.toByte() }
-        assertThrows(PageRecognitionException::class.java) { GridDetector().detect(GrayImage(width, height, merged)) }
+        val recovered = GridDetector().detect(GrayImage(width, height, merged))
+        assertEquals(StructureOutcome.STRUCTURE_REVIEW_REQUIRED, recovered.outcome)
+        assertTrue(recovered.merged.contains(GridCell(0, 0, 1, 2)))
         val original = pixels()
         val cut = ByteArray(521 * height) { index -> original[index / 521 * width + index % 521 + 40] }
-        assertThrows(PageRecognitionException::class.java) { GridDetector().detect(GrayImage(521, height, cut)) }
+        assertEquals(StructureOutcome.STRUCTURE_REVIEW_REQUIRED, GridDetector().detect(GrayImage(521, height, cut)).outcome)
     }
 
     @Test fun `blank or unruled pages fail instead of returning a fake table`() {
@@ -64,7 +66,7 @@ class GridRecognitionTest {
         assertEquals(RecognitionReliability.UNREADABLE, page.rows[0].cells[2].reliability)
         assertEquals("", page.rows[0].cells[2].rawValue)
         val cross = TextEvidence("跨列", SourceRegion(0.25f, 0.30f, 0.35f, 0.35f), 0.99f)
-        assertThrows(PageRecognitionException::class.java) { TableCandidateAssembler().assemble("page", image, grid, header + cross) }
+        assertThrows(StructureReviewException::class.java) { TableCandidateAssembler().assemble("page", image, grid, header + cross) }
     }
 
     @Test fun `text centered on grid stroke cannot disappear from candidate data`() {
@@ -72,7 +74,7 @@ class GridRecognitionTest {
         val grid = GridDetector().detect(image)
         val header = (0..3).map { evidence(0, it, "字段$it") }
         val onStroke = TextEvidence("123", SourceRegion(165f / width, .30f, 175f / width, .35f), .99f)
-        assertThrows(PageRecognitionException::class.java) {
+        assertThrows(StructureReviewException::class.java) {
             TableCandidateAssembler().assemble("page", image, grid, header + evidence(1, 0, "001") + onStroke)
         }
     }
