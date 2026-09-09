@@ -10,7 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [TaskEntity::class, SourceEntity::class, SchemaEntity::class, FieldEntity::class, RowEntity::class, CellEntity::class,
         PageResultEntity::class, IssueEntity::class, ReviewDecisionEntity::class],
-    version = 4, exportSchema = true,
+    version = 5, exportSchema = true,
 )
 abstract class FormSnapDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
@@ -21,7 +21,13 @@ abstract class FormSnapDatabase : RoomDatabase() {
     companion object {
         val MIGRATION_2_3: Migration = StructuredMigration
         val MIGRATION_3_4: Migration = QualityMigration
-        val ALL_MIGRATIONS get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE table_schemas ADD COLUMN configurationConfirmed INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE digitization_tasks SET status = 'REVIEW_REQUIRED' WHERE id IN (SELECT taskId FROM table_schemas)")
+            }
+        }
+        val ALL_MIGRATIONS get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""

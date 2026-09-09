@@ -21,6 +21,8 @@ interface QualityDao {
     @Insert suspend fun insertIssues(issues: List<IssueEntity>)
     @Update suspend fun updateCells(cells: List<CellEntity>)
     @Update suspend fun updateFields(fields: List<FieldEntity>)
+    @Query("UPDATE table_schemas SET configurationConfirmed = 1 WHERE taskId = :taskId")
+    suspend fun confirmConfiguration(taskId: String)
     @Query("UPDATE table_rows SET excluded = 1 WHERE id = :rowId AND taskId = :taskId")
     suspend fun excludeRow(taskId: String, rowId: String): Int
     @Insert suspend fun recordDecision(decision: ReviewDecisionEntity)

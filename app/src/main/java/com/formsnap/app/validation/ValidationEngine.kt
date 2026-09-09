@@ -8,6 +8,12 @@ import java.time.format.DateTimeParseException
 class ValidationEngine {
     fun validate(dataset: StructuredDataset, pageProblems: List<PageProblem> = emptyList()): ValidationResult {
         val issues = mutableListOf<ValidationIssue>()
+        if (!dataset.schema.configurationConfirmed) {
+            issues += ValidationIssue(fingerprint(dataset.schema.id, "configuration"), dataset.schema.taskId,
+                IssueScope.SCHEMA, IssueTarget.SCHEMA, dataset.schema.id, IssueCode.STRUCTURE_WARNING,
+                fingerprint(*dataset.schema.fields.map { it.name }.toTypedArray()),
+                "请核对表头，并按材料设置字段类型、必填项、格式、范围及重复键。保存字段设置后继续检查。")
+        }
         val fields = dataset.schema.fields.associateBy { it.id }
         val rows = dataset.rows.filterNot { it.excluded }
         val normalized = rows.flatMap { row -> row.cells.map { cell ->

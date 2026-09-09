@@ -42,6 +42,9 @@ dependencies {
     implementation(libs.navigation.compose)
     implementation(libs.room.runtime)
     implementation(libs.coroutines.android)
+    implementation(libs.mlkit.text.chinese)
+    implementation(libs.work.runtime)
+    implementation(libs.exifinterface)
     ksp(libs.room.compiler)
 
     debugImplementation(libs.compose.ui.tooling)

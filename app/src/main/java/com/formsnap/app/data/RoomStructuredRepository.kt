@@ -26,7 +26,7 @@ class RoomStructuredRepository(
         val fields = dao.fields(taskId)
         val cells = dao.cells(taskId).groupBy { it.rowId }
         StructuredDataset(
-            TableSchema(schema.id, taskId, fields.map { it.toDomain() }),
+            TableSchema(schema.id, taskId, fields.map { it.toDomain() }, schema.configurationConfirmed),
             dao.rows(taskId).map { row ->
                 val byField = cells[row.id].orEmpty().associateBy { it.fieldId }
                 TableRow(
@@ -38,12 +38,12 @@ class RoomStructuredRepository(
         )
     }
 
-    override suspend fun createSchema(taskId: String, fields: List<FieldDefinition>): TableSchema = database.withTransaction {
+    override suspend fun createSchema(taskId: String, fields: List<FieldDefinition>, configurationConfirmed: Boolean): TableSchema = database.withTransaction {
         checkNotNull(database.taskDao().getTask(taskId))
         check(dao.schema(taskId) == null) { "A task already owns a schema" }
         require(fields.isNotEmpty())
-        val schema = TableSchema(nextId(), taskId, fields.toList())
-        dao.insertSchema(SchemaEntity(schema.id, taskId))
+        val schema = TableSchema(nextId(), taskId, fields.toList(), configurationConfirmed)
+        dao.insertSchema(SchemaEntity(schema.id, taskId, configurationConfirmed))
         dao.insertFields(fields.mapIndexed { index, field -> field.toEntity(schema.id, taskId, index) })
         schema
     }

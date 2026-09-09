@@ -1,6 +1,7 @@
 package com.formsnap.app.data.local
 
 import androidx.room.Entity
+import androidx.room.ColumnInfo
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -10,7 +11,8 @@ import androidx.room.PrimaryKey
     foreignKeys = [ForeignKey(entity = TaskEntity::class, parentColumns = ["id"], childColumns = ["taskId"], onDelete = ForeignKey.CASCADE)],
     indices = [Index(value = ["taskId"], unique = true), Index(value = ["id", "taskId"], unique = true)],
 )
-data class SchemaEntity(@PrimaryKey val id: String, val taskId: String)
+data class SchemaEntity(@PrimaryKey val id: String, val taskId: String,
+    @ColumnInfo(defaultValue = "0") val configurationConfirmed: Boolean = true)
 
 @Entity(
     tableName = "field_definitions",

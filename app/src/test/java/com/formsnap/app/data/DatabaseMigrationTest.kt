@@ -88,7 +88,7 @@ class DatabaseMigrationTest {
             assertTrue(sources.observeSources(old.id).first().isEmpty())
             assertEquals(1, sources.addSources(old.id, listOf(RoomSourceRepositoryTest.A)).added)
             assertEquals(old.id, sources.observeSources(old.id).first().single().taskId)
-            assertEquals(4, upgraded.openHelper.readableDatabase.version)
+            assertEquals(5, upgraded.openHelper.readableDatabase.version)
         } finally {
             upgraded.close()
             context.deleteDatabase(name)

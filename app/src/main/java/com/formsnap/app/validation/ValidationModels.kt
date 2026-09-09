@@ -10,7 +10,7 @@ enum class IssueCode {
     SOURCE_UNAVAILABLE,
 }
 enum class IssueScope { CELL, COLUMN, DATASET, SCHEMA }
-enum class IssueTarget { CELL, ROW_GROUP, SOURCE }
+enum class IssueTarget { CELL, ROW_GROUP, SOURCE, SCHEMA }
 enum class IssueStatus { OPEN, RESOLVED, UNCONFIRMABLE }
 
 data class ValidationIssue(

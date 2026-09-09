@@ -79,6 +79,7 @@ class RoomQualityRepository(
             val changed = byId.getValue(field.id)
             changed.toEntity(field.schemaId, taskId, field.position).copy(sourceColumnIndex = field.sourceColumnIndex, sourceHeader = field.sourceHeader)
         })
+        dao.confirmConfiguration(taskId)
         invalidateExport(taskId)
         revalidate(taskId)
         Unit
@@ -122,7 +123,7 @@ class RoomQualityRepository(
                 previous = rows.sorted().joinToString(",")
                 final = decision.editedValue
             }
-            IssueTarget.SOURCE -> error("Page problems require reprocessing or source removal, never a blind confirmation")
+            IssueTarget.SOURCE, IssueTarget.SCHEMA -> error("Page or configuration problems require their specific corrective actions")
         }
         dao.recordDecision(ReviewDecisionEntity(UUID.randomUUID().toString(), taskId, decision.target.name, decision.targetId,
             decision.action.name, raw, previous, final, issues.map { it.code.name }.distinct().joinToString(","), clock.millis()))

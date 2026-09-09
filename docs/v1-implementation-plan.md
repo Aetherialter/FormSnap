@@ -62,3 +62,42 @@ Lint 0 errors、12 warnings：11 条工具链/依赖版本建议与已有 Uri KT
 现有 v1/v2 迁移测试继续验证到最新版，v3 迁移保留 raw/normalized/confirmed、原行序与来源区域。
 Lint 0 errors、12 warnings，仍为依赖更新和已有 KTX 风格建议。
 UI 和真实识别尚未接入这些新服务；后续阶段继续推进，不把本阶段视为 V1 完整交付。
+
+## 阶段 4：真实识别和批处理
+
+### 依赖决策（新增前核对官方资料）
+
+- `com.google.mlkit:text-recognition-chinese:16.0.1`：AndroidX 无中文 OCR 等价实现，选用随包模型而非依赖首次联网下载的版本。官方标注每脚本/ABI 约增加 4 MB；最终 Debug APK 包含多个 ABI，实际包体将在验证中记录。文字框与 Element confidence 均来自真实 API；不是表格模型，也不保证潦草手写准确。
+- `androidx.work:work-runtime:2.10.1`：采用官方持久后台工作机制。每任务唯一工作 KEEP，进程重启后可重新执行尚未成功页面。标准 AndroidX 依赖，没有新框架或服务器。
+- `androidx.exifinterface:exifinterface:1.4.1`：正确处理原照片旋转/镜像信息，兼容最低 API 26；小型 AndroidX 图像元数据依赖，无模型和网络。
+- 所有处理离线执行；Manifest 移除传递依赖可能带入的 INTERNET 权限。WorkManager 自带唤醒、开机恢复等权限，与文件读取权限分开。
+
+官方依据（2026-09-09 读取）：
+
+- https://developers.google.com/ml-kit/vision/text-recognition/v2/android
+- https://developers.google.com/android/reference/com/google/mlkit/vision/text/Text.Element#getConfidence()
+- https://developer.android.com/jetpack/androidx/releases/work#2.10.1
+- https://developer.android.com/jetpack/androidx/releases/exifinterface#1.4.1
+
+### 实际边界
+
+原 URI → 有界 EXIF 正向内存图 → 连续横竖边框检测 → ML Kit 文字框 → 单元格归属 → CandidatePage。
+最高解码边长 2200，拒绝超大异常尺寸；一个应用级 Runner 串行执行图片重工作，不复制原图或创建磁盘图像缓存。
+当前只支持横平竖直、边框完整、无合并单元格的规整表格。缺边、合并、跨格文字、低可靠表头、无法恢复行列均明确失败。
+完全空白的表格槽位不作为记录；部分填写的行保留所有空 Cell。存在墨迹但无法读取时保留空候选并标为难辨，不猜文字。
+可靠性由文字最小置信度、区域归属和墨迹检查提供，阈值不是经真实手写数据校准的准确率保证。
+SourceRegion 统一对应 EXIF 正向原图，缩放坐标归一化；后续 UI 使用同一加载器显示原纸局部。
+
+页级结果成功即持久化；失败页与正常页分开，结构不同页面不入合并数据。
+后续启动默认只处理未成功页，单页重处理有明确入口和人工结果覆盖确认。取消保留已提交页，未完成页记录可重试状态。
+Room v5 增加字段配置确认位：识别得到的表头不能自动意味着用户已选择适用的质量规则。
+首次识别后用户核对字段设置并保存才可通过配置问题；旧结构化任务迁移后也需核对设置，原值及历史不删除。
+
+### 阶段 4 验证结果
+
+2026-09-09：98 项自动测试全部通过，Debug 和测试 APK 构建成功，Lint 0 errors、15 warnings。
+新增 5 项像素网格/文字框结构测试、6 项批处理与中断恢复测试、3 项原生图形解码/EXIF/损坏图片测试、1 项冻结 v4 迁移测试。
+原生图形测试发现并修复“只读取尺寸返回 null 被误认为文件打开失败”的真实实现问题；未以默认图形 shadow 的占位图冒充真实解码。
+Debug APK 约 55 MiB（含多 ABI、模型与调试依赖），无 INTERNET 权限；WorkManager 的后台恢复权限来自其官方库。
+结构测试使用合成像素、批处理测试隔离 ML Kit，不能据此宣称真实拍摄图片或手写识别已经验收。
+实际中文识别适配器完成编译和打包；由于仍无设备，真实模型输出与系统后台恢复须在最终真机验收中单独核对。

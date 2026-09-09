@@ -54,10 +54,11 @@ class QualityMigrationTest {
             assertEquals(5, cell.source!!.originalRowIndex)
             assertEquals(0.1f, cell.source!!.region!!.left)
             assertEquals("SUCCEEDED", db.qualityDao().pages("old").single().state)
-            assertEquals("PROCESSING", db.taskDao().getTask("old")!!.status)
+            assertEquals("REVIEW_REQUIRED", db.taskDao().getTask("old")!!.status)
+            assertFalse(data.schema.configurationConfirmed)
             assertTrue(db.qualityDao().issues("old").isEmpty())
             assertTrue(db.qualityDao().decisions("old").isEmpty())
-            assertEquals(4, db.openHelper.readableDatabase.version)
+            assertEquals(5, db.openHelper.readableDatabase.version)
         } finally { db.close(); context.deleteDatabase(name) }
     }
 }
