@@ -39,7 +39,7 @@
     <string name="cancel">取消</string>
     <string name="remove_source_description">移除第 %1$d 页</string>
     <string name="remove_source_title">从任务移除此页？</string>
-    <string name="remove_source_hint">只移除当前任务中的页面，不会删除手机里的原始图片。</string>
+    <string name="remove_source_hint">移除当前任务中的页面及该页整理记录。其他页面保留，不会删除手机里的原始图片。</string>
     <string name="sources_imported">已添加 %1$d 页，跳过重复 %2$d 页，未添加 %3$d 页。</string>
     <string name="source_permission_failed">部分图片无法保留长期访问，请从系统“文件”中重新选择。</string>
     <string name="source_unsupported">部分选择不是可用的图片来源，请选择图片文件。</string>

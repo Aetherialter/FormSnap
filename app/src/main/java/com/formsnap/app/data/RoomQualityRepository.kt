@@ -18,6 +18,7 @@ class RoomQualityRepository(
 ) : QualityRepository {
     private val dao = database.qualityDao()
     private val structured = RoomStructuredRepository(database)
+    override fun observeCounts() = dao.observeCounts()
 
     override fun observeQuality(taskId: String) = database.invalidationTracker.createFlow(
         "table_schemas", "field_definitions", "table_rows", "cells", "source_documents", "validation_issues", "page_results",
@@ -129,12 +130,12 @@ class RoomQualityRepository(
             decision.action.name, raw, previous, final, issues.map { it.code.name }.distinct().joinToString(","), clock.millis()))
         invalidateExport(taskId)
         revalidate(taskId)
-        // Explicit human decisions close all current issues of the target; unreadable stays blocking.
-        // Changed values are revalidated first so new duplicate groups remain pending.
+        // Confirm/keep explicitly accept the displayed value. An edit must not silently acknowledge
+        // fresh format/range/required problems introduced by the new value. Unreadable stays blocking.
         val current = dao.issues(taskId)
         dao.clearIssues(taskId)
         dao.insertIssues(current.map { issue ->
-            if (issue.target == decision.target.name && issue.targetId == decision.targetId) issue.copy(
+            if (issue.target == decision.target.name && issue.targetId == decision.targetId && decision.action != ReviewAction.EDIT) issue.copy(
                 status = if (decision.action == ReviewAction.UNREADABLE) IssueStatus.UNCONFIRMABLE.name else IssueStatus.RESOLVED.name,
             ) else issue
         })

@@ -59,6 +59,19 @@ class RoomQualityRepositoryTest {
     private suspend fun status() = TaskStatus.valueOf(db.taskDao().getTask(taskId)!!.status)
     private suspend fun cell() = structured.getDataset(taskId)!!.rows.single().cells[1]
 
+    @Test fun `editing to another invalid value creates fresh blocking issues until explicitly reviewed`() = runTest {
+        seed()
+        quality.revalidate(taskId)
+        quality.decide(taskId, ReviewDecision(IssueTarget.CELL, cell().id, ReviewAction.EDIT, "900"))
+        assertEquals("900", cell().confirmedValue)
+        assertEquals("S12", cell().rawValue)
+        assertEquals(TaskStatus.REVIEW_REQUIRED, status())
+        assertTrue(quality.revalidate(taskId).issues.any { it.active && it.code == IssueCode.OUT_OF_RANGE && it.status == IssueStatus.OPEN })
+        try { quality.exportableDataset(taskId); fail("An edit is not a blanket exception to quality rules") } catch (_: IllegalStateException) { }
+        quality.decide(taskId, ReviewDecision(IssueTarget.CELL, cell().id, ReviewAction.KEEP))
+        assertEquals(TaskStatus.READY_TO_EXPORT, status())
+    }
+
     @Test fun `all clear becomes ready only after validation and missing source pages still block`() = runTest {
         seed(listOf(listOf("001", "512")))
         assertEquals(TaskStatus.PROCESSING, status())

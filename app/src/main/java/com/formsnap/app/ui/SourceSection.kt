@@ -35,7 +35,7 @@ import com.formsnap.app.domain.model.SourceStatus
 import com.formsnap.app.domain.repository.SourceImportFailure
 
 @Composable
-fun SourceSection(model: SourceViewModel, editable: Boolean) {
+fun SourceSection(model: SourceViewModel, editable: Boolean, onOpen: ((String) -> Unit)? = null, onReprocess: ((String) -> Unit)? = null) {
     val state by model.sources.collectAsStateWithLifecycle()
     val operation by model.operation.collectAsStateWithLifecycle()
     val notice by model.notice.collectAsStateWithLifecycle()
@@ -56,6 +56,8 @@ fun SourceSection(model: SourceViewModel, editable: Boolean) {
         },
         onRemove = model::remove,
         onRefresh = model::retryLoading,
+        onOpen = onOpen,
+        onReprocess = onReprocess,
     )
 }
 
@@ -68,6 +70,8 @@ internal fun SourceSectionContent(
     onAdd: () -> Unit,
     onRemove: (String) -> Unit,
     onRefresh: () -> Unit,
+    onOpen: ((String) -> Unit)? = null,
+    onReprocess: ((String) -> Unit)? = null,
 ) {
     var pendingRemoval by rememberSaveable { mutableStateOf<String?>(null) }
     val busy = operation != SourceOperation.IDLE
@@ -125,6 +129,10 @@ internal fun SourceSectionContent(
                 if (page.status == SourceStatus.UNAVAILABLE) {
                     Text(stringResource(R.string.source_unavailable_hint), style = MaterialTheme.typography.bodySmall)
                 }
+                Row {
+                    onOpen?.let { TextButton(onClick = { it(page.id) }) { Text("查看原页面") } }
+                    onReprocess?.let { TextButton(onClick = { it(page.id) }, enabled = editable && !busy && page.status == SourceStatus.AVAILABLE) { Text("重新整理此页") } }
+                }
             }
         }
     }
@@ -134,7 +142,7 @@ internal fun SourceSectionContent(
             title = { Text(stringResource(R.string.remove_source_title)) },
             text = { Text(stringResource(R.string.remove_source_hint)) },
             confirmButton = {
-                TextButton(onClick = { pendingRemoval = null; onRemove(id) }, enabled = !busy, modifier = Modifier.testTag("confirmRemoveSource")) {
+                TextButton(onClick = { pendingRemoval = null; onRemove(id) }, enabled = editable && !busy, modifier = Modifier.testTag("confirmRemoveSource")) {
                     Text(stringResource(R.string.remove))
                 }
             },

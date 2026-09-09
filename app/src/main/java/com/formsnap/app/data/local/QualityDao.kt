@@ -5,9 +5,19 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
 import androidx.room.Upsert
+import com.formsnap.app.domain.model.TaskCounts
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface QualityDao {
+    @Query("""
+        SELECT t.id AS taskId,
+        (SELECT COUNT(*) FROM table_rows r WHERE r.taskId = t.id AND r.excluded = 0) AS recordCount,
+        (SELECT COUNT(DISTINCT i.target || ':' || i.targetId) FROM validation_issues i WHERE i.taskId = t.id AND i.active = 1 AND i.status != 'RESOLVED') AS reviewCount,
+        (SELECT COUNT(*) FROM validation_issues i WHERE i.taskId = t.id AND i.active = 1 AND i.status != 'RESOLVED' AND i.code = 'DUPLICATE_RECORD') AS duplicateCount
+        FROM digitization_tasks t
+    """)
+    fun observeCounts(): Flow<List<TaskCounts>>
     @Query("SELECT * FROM page_results WHERE taskId = :taskId")
     suspend fun pages(taskId: String): List<PageResultEntity>
     @Upsert suspend fun savePage(page: PageResultEntity)

@@ -7,12 +7,23 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import java.util.concurrent.Executor
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
-class ProcessingScheduler(context: Context) {
+data class ProcessingActivity(val busy: Boolean, val completed: Int = 0, val total: Int = 0)
+interface ProcessingGateway {
+    fun observe(taskId: String): Flow<ProcessingActivity>
+    suspend fun enqueue(request: ProcessingRequest)
+}
+
+class ProcessingScheduler(context: Context) : ProcessingGateway {
     private val work by lazy { WorkManager.getInstance(context.applicationContext) }
-    fun observe(taskId: String) = work.getWorkInfosForUniqueWorkFlow(name(taskId))
+    override fun observe(taskId: String) = work.getWorkInfosForUniqueWorkFlow(name(taskId)).map { entries ->
+        val active = entries.firstOrNull { !it.state.isFinished }
+        ProcessingActivity(active != null, active?.progress?.getInt("completed", 0) ?: 0, active?.progress?.getInt("total", 0) ?: 0)
+    }
 
-    suspend fun enqueue(request: ProcessingRequest) {
+    override suspend fun enqueue(request: ProcessingRequest) {
         val item = OneTimeWorkRequestBuilder<FormProcessingWorker>().setInputData(workDataOf(
             "taskId" to request.taskId, "sourceId" to request.sourceId, "discardHumanWork" to request.discardHumanWork,
         )).build()

@@ -33,6 +33,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -43,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -52,15 +56,27 @@ import androidx.navigation.navArgument
 import com.formsnap.app.R
 import com.formsnap.app.domain.model.DigitizationTask
 import com.formsnap.app.domain.model.TaskStatus
+import com.formsnap.app.domain.model.TaskCounts
+import com.formsnap.app.domain.model.SourceDocument
 import com.formsnap.app.domain.repository.SourceRepository
+import com.formsnap.app.domain.repository.QualityRepository
+import com.formsnap.app.data.source.SourceImageLoader
+import com.formsnap.app.processing.ProcessingGateway
+import com.formsnap.app.export.TaskExporter
+import com.formsnap.app.review.ReviewQueue
+import androidx.compose.material3.AlertDialog
+import kotlinx.coroutines.flow.catch
 
 @Composable
-fun FormSnapApp(model: TaskViewModel, sourceRepository: SourceRepository) {
+fun FormSnapApp(model: TaskViewModel, sourceRepository: SourceRepository, qualityRepository: QualityRepository,
+    processing: ProcessingGateway, images: SourceImageLoader, exporter: TaskExporter) {
     val navigation = rememberNavController()
     val tasks by model.tasks.collectAsStateWithLifecycle()
     val name by model.taskName.collectAsStateWithLifecycle()
     val creation by model.creation.collectAsStateWithLifecycle()
     val createdId by model.createdTaskId.collectAsStateWithLifecycle()
+    val counts by remember(qualityRepository) { qualityRepository.observeCounts().catch { emit(emptyList()) } }
+        .collectAsStateWithLifecycle(initialValue = emptyList())
 
     LaunchedEffect(createdId) {
         createdId?.let { id ->
@@ -81,6 +97,7 @@ fun FormSnapApp(model: TaskViewModel, sourceRepository: SourceRepository) {
                 onCreate = { navigation.navigate("create") { launchSingleTop = true } },
                 onOpen = { navigation.navigate("task/${Uri.encode(it)}") },
                 onRetry = model::retryLoading,
+                counts = counts,
             )
         }
         composable("create") {
@@ -100,12 +117,42 @@ fun FormSnapApp(model: TaskViewModel, sourceRepository: SourceRepository) {
             )
             val detail by remember(model, id) { model.observeTask(id) }
                 .collectAsStateWithLifecycle(initialValue = TaskDetailState.Loading)
+            val workflow: WorkflowViewModel = viewModel(viewModelStoreOwner = it, factory = viewModelFactory {
+                initializer { WorkflowViewModel(id, qualityRepository, sourceRepository, processing, exporter, createSavedStateHandle()) }
+            })
+            val pages by remember(id) { sourceRepository.observeSources(id).catch { emit(emptyList()) } }.collectAsStateWithLifecycle(initialValue = emptyList())
+            WorkflowEffects(workflow, (detail as? TaskDetailState.Ready)?.task?.name ?: "表录数据")
             TaskDetailScreen(
                 state = detail,
                 sourceModel = sourceModel,
                 onBack = { navigation.popBackStack() },
                 onRetry = model::retryLoading,
+                workflow = workflow,
+                pages = pages,
+                images = images,
+                onReview = { navigation.navigate("task/$id/review") },
+                onFields = { navigation.navigate("task/$id/fields") },
+                onData = { navigation.navigate("task/$id/data") },
             )
+        }
+        listOf("review", "fields", "data").forEach { screen ->
+            composable("task/{id}/$screen", arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+                val id = entry.arguments?.getString("id").orEmpty()
+                val workflow: WorkflowViewModel = viewModel(viewModelStoreOwner = entry, factory = viewModelFactory {
+                    initializer { WorkflowViewModel(id, qualityRepository, sourceRepository, processing, exporter, createSavedStateHandle()) }
+                })
+                val detail by remember(model, id) { model.observeTask(id) }.collectAsStateWithLifecycle(initialValue = TaskDetailState.Loading)
+                val pages by remember(id) { sourceRepository.observeSources(id).catch { emit(emptyList()) } }.collectAsStateWithLifecycle(initialValue = emptyList())
+                val task = (detail as? TaskDetailState.Ready)?.task
+                WorkflowEffects(workflow, task?.name ?: "表录数据")
+                when (screen) {
+                    "fields" -> FieldSettingsScreen(workflow) { navigation.popBackStack() }
+                    "review" -> ReviewScreen(workflow, pages, images, { navigation.popBackStack() },
+                        { navigation.navigate("task/$id/fields") }, { navigation.popBackStack("task/{id}", false) }, { navigation.navigate("task/$id/data") })
+                    "data" -> FinalDataScreen(workflow, pages, images, task?.status in setOf(TaskStatus.READY_TO_EXPORT, TaskStatus.EXPORTED),
+                        { navigation.popBackStack() }, { navigation.navigate("task/$id/review") }, { navigation.navigate("task/$id/fields") })
+                }
+            }
         }
     }
 }
@@ -117,6 +164,7 @@ private fun HomeScreen(
     onCreate: () -> Unit,
     onOpen: (String) -> Unit,
     onRetry: () -> Unit,
+    counts: List<TaskCounts>,
 ) {
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) }) { insets ->
         LazyColumn(
@@ -153,6 +201,9 @@ private fun HomeScreen(
                             Text(task.name, style = MaterialTheme.typography.titleMedium)
                             Spacer(Modifier.height(6.dp))
                             Text(stringResource(task.status.label()), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            counts.singleOrNull { it.taskId == task.id }?.let { count ->
+                                Text("${count.recordCount} 条记录 · " + if (task.status in setOf(TaskStatus.DRAFT, TaskStatus.CAPTURING, TaskStatus.PROCESSING)) "尚未完成检查" else "${count.reviewCount} 项待确认")
+                            }
                         }
                         HorizontalDivider()
                     }
@@ -209,7 +260,18 @@ private fun TaskDetailScreen(
     sourceModel: SourceViewModel,
     onBack: () -> Unit,
     onRetry: () -> Unit,
+    workflow: WorkflowViewModel,
+    pages: List<SourceDocument>,
+    images: SourceImageLoader,
+    onReview: () -> Unit,
+    onFields: () -> Unit,
+    onData: () -> Unit,
 ) {
+    val quality by workflow.state.collectAsStateWithLifecycle()
+    val activity by workflow.activity.collectAsStateWithLifecycle()
+    val busy by workflow.busy.collectAsStateWithLifecycle()
+    var openPage by rememberSaveable { mutableStateOf<String?>(null) }
+    var reprocessPage by rememberSaveable { mutableStateOf<String?>(null) }
     Page(title = stringResource(R.string.task_detail), onBack = onBack) {
         when (state) {
             TaskDetailState.Loading -> LoadingTasks()
@@ -222,15 +284,36 @@ private fun TaskDetailScreen(
                     Text(task.name, style = MaterialTheme.typography.headlineSmall)
                     Spacer(Modifier.height(24.dp))
                     DetailValue(stringResource(R.string.status_label), stringResource(task.status.label()))
-                    // Structured records and quality checks are outside Phase 1.
-                    DetailValue(stringResource(R.string.record_count), stringResource(R.string.zero_count))
-                    DetailValue(stringResource(R.string.review_count), stringResource(R.string.not_checked))
+                    WorkflowNotice(workflow)
+                    WorkflowLoadState(quality, workflow) { ready ->
+                        val data = ready.snapshot.dataset
+                        DetailValue(stringResource(R.string.record_count), data?.rows?.count { !it.excluded }?.toString() ?: "0")
+                        DetailValue(stringResource(R.string.review_count), if (data == null && ready.snapshot.issues.isEmpty()) "尚未检查" else ReviewQueue.items(ready.snapshot.issues).size.toString())
+                        if (activity?.busy == true) Text("正在整理 ${activity?.completed ?: 0} / ${activity?.total ?: 0} 页，离开页面后仍会继续。")
+                        else if (task.status == TaskStatus.PROCESSING) Text("整理尚未完成，可以重新执行。", color = MaterialTheme.colorScheme.error)
+                        Button(onClick = { workflow.start() }, enabled = pages.isNotEmpty() && !busy && activity?.busy == false,
+                            modifier = Modifier.fillMaxWidth().testTag("startProcessing")) { Text("开始整理 / 继续未完成页面") }
+                        Text("当前适用于边框清晰、横平竖直、无合并单元格的表格。", style = MaterialTheme.typography.bodySmall)
+                        if (data != null) {
+                            TextButton(onClick = onFields) { Text("字段设置") }
+                            Button(onClick = onReview, modifier = Modifier.fillMaxWidth()) { Text("开始检查") }
+                            TextButton(onClick = onData) { Text("查看完整数据") }
+                            Button(onClick = workflow::requestExport, enabled = task.status in setOf(TaskStatus.READY_TO_EXPORT, TaskStatus.EXPORTED) && !busy && activity?.busy == false,
+                                modifier = Modifier.fillMaxWidth()) { Text("导出 XLSX") }
+                        } else if (ready.snapshot.issues.isNotEmpty()) TextButton(onClick = onReview) { Text("检查未完成页面") }
+                    }
                     Spacer(Modifier.height(32.dp))
-                    SourceSection(sourceModel, task.status == TaskStatus.DRAFT || task.status == TaskStatus.CAPTURING)
+                    SourceSection(sourceModel, task.status != TaskStatus.PROCESSING && activity?.busy == false && !busy,
+                        onOpen = { openPage = it }, onReprocess = { reprocessPage = it })
                 }
             }
         }
     }
+    openPage?.let { id -> SourceViewer(pages.singleOrNull { it.id == id }, images) { openPage = null } }
+    reprocessPage?.let { id -> AlertDialog(onDismissRequest = { reprocessPage = null }, title = { Text("重新整理此页？") },
+        text = { Text("该页已有的整理结果和人工修改将被替换，其他页面保留。原始图片不会改变。") },
+        confirmButton = { TextButton(onClick = { reprocessPage = null; workflow.start(id, discardHumanWork = true) }, enabled = !busy && activity?.busy == false) { Text("重新整理") } },
+        dismissButton = { TextButton(onClick = { reprocessPage = null }) { Text("取消") } }) }
 }
 
 @Composable
@@ -247,7 +330,7 @@ private fun DetailValue(label: String, value: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Page(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
+internal fun Page(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
