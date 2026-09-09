@@ -46,7 +46,7 @@ fun FieldSettingsScreen(model: WorkflowViewModel, onBack: () -> Unit) {
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Button(onClick = {
                     val parsed = runCatching { drafts.map { it.field() } }
-                    if (parsed.isSuccess) model.fields(parsed.getOrThrow())
+                    if (parsed.isSuccess) model.fields(parsed.getOrThrow().map { field -> field.copy(headerPath = schema.fields.single { it.id == field.id }.headerPath) })
                     else error = "请检查字段名称、格式和数值范围。最小值不得大于最大值；格式不支持分组或分支。"
                 }, enabled = !busy && activity?.busy == false, modifier = Modifier.fillMaxWidth().testTag("saveFields")) { Text("保存字段设置并检查") }
             }

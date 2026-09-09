@@ -3,6 +3,7 @@ package com.formsnap.app.processing
 import androidx.room.withTransaction
 import com.formsnap.app.data.RoomQualityRepository
 import com.formsnap.app.data.RoomStructuredRepository
+import com.formsnap.app.data.RoomStructureRepository
 import com.formsnap.app.data.local.FormSnapDatabase
 import com.formsnap.app.data.local.PageResultEntity
 import com.formsnap.app.data.local.toDomain
@@ -22,7 +23,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 data class ProcessingRequest(val taskId: String, val sourceId: String? = null, val discardHumanWork: Boolean = false)
-data class ProcessingSummary(val successfulPages: Int, val failedPages: Int)
+data class ProcessingSummary(val successfulPages: Int, val failedPages: Int, val structureReviewPages: Int=0)
 
 /** One application instance serializes image-heavy jobs; committed page results survive restarts. */
 class ProcessingRunner(
@@ -49,20 +50,30 @@ class ProcessingRunner(
         }
         var succeeded = 0
         var failed = 0
+        var review = 0
         try {
             progress(0, sources.size)
             for ((index, source) in sources.withIndex()) {
                 currentCoroutineContext().ensureActive()
                 try {
                     if (source.status != SourceStatus.AVAILABLE.name) throw PageRecognitionException(IssueCode.SOURCE_UNAVAILABLE, "来源当前无法访问，请恢复文件或重新添加。")
-                    val page = recognizer.recognize(source.toDomain())
+                    val page = if(recognizer is StructureRecognizer) RoomStructureRepository(database,recognizer).process(source.toDomain(),request.discardHumanWork)
+                        else recognizer.recognize(source.toDomain())
                     check(page.sourceDocumentId == source.id) { "Recognizer returned a different source" }
                     database.withTransaction {
                         if (structured.getDataset(taskId) == null) structured.createSchema(taskId,
-                            page.headers.map { FieldDefinition(UUID.randomUUID().toString(), it) }, configurationConfirmed = false)
+                            page.headers.mapIndexed { i,name -> FieldDefinition(UUID.randomUUID().toString(), name, headerPath=page.headerPaths[i]) }, configurationConfirmed = false)
                         structured.replacePage(taskId, page, request.discardHumanWork)
+                        if(recognizer is StructureRecognizer) database.structureDao().get(taskId,source.id)?.let {
+                            database.structureDao().save(it.copy(confirmed=true,revision=it.revision+1))
+                        }
                     }
                     succeeded++
+                } catch (structure: StructureReviewException) {
+                    review++
+                    // Pause before later pages establish a competing schema. Resume after confirmation.
+                    for(rest in sources.drop(index+1)) database.qualityDao().savePage(PageResultEntity(rest.id,taskId,"PENDING",null,"等待首张结构确认后继续整理。",clock.millis()))
+                    break
                 } catch (timeout: TimeoutCancellationException) {
                     currentCoroutineContext().ensureActive()
                     failed++
@@ -85,7 +96,7 @@ class ProcessingRunner(
                 progress(index + 1, sources.size)
             }
             quality.revalidate(taskId)
-            ProcessingSummary(succeeded, failed)
+            ProcessingSummary(succeeded, failed, review)
         } catch (cancelled: CancellationException) {
             withContext(NonCancellable) { recoverInterrupted(taskId) }
             throw cancelled
@@ -96,7 +107,8 @@ class ProcessingRunner(
     }
 
     private suspend fun failPage(taskId: String, sourceId: String, code: IssueCode, message: String) {
-        database.qualityDao().savePage(PageResultEntity(sourceId, taskId, "FAILED", code.name, message, clock.millis()))
+        val state=if(code==IssueCode.UNREADABLE || code==IssueCode.SOURCE_UNAVAILABLE)"SOURCE_UNUSABLE" else "FAILED"
+        database.qualityDao().savePage(PageResultEntity(sourceId, taskId, state, code.name, message, clock.millis()))
     }
 
     private suspend fun recoverInterrupted(taskId: String) = database.withTransaction {

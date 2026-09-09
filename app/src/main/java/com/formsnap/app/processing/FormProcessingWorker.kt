@@ -15,7 +15,7 @@ class FormProcessingWorker(context: Context, parameters: WorkerParameters) : Cor
             val result = (applicationContext as FormSnapApplication).processingRunner.run(request) { completed, total ->
                 setProgress(workDataOf("completed" to completed, "total" to total))
             }
-            Result.success(workDataOf("successfulPages" to result.successfulPages, "failedPages" to result.failedPages))
+            Result.success(workDataOf("successfulPages" to result.successfulPages, "failedPages" to result.failedPages, "structureReviewPages" to result.structureReviewPages))
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {

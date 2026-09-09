@@ -9,6 +9,7 @@ import com.formsnap.app.domain.repository.StructuredRepository
 import java.time.Clock
 import java.util.UUID
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
 
 class RoomStructuredRepository(
     private val database: FormSnapDatabase,
@@ -95,11 +96,11 @@ class RoomStructuredRepository(
 
 internal fun FieldEntity.toDomain() = FieldDefinition(id, name, FieldType.valueOf(type), FieldRules(
     required, pattern, minimum, maximum, duplicateKey, detectColumnOutliers,
-))
+), JSONArray(headerPath).let { array -> if(array.length()==0)listOf(sourceHeader) else (0 until array.length()).map { array.getString(it) } })
 
 internal fun FieldDefinition.toEntity(schemaId: String, taskId: String, index: Int) = FieldEntity(
     id, schemaId, taskId, index, name, type.name, rules.required, rules.pattern, rules.minimum,
-    rules.maximum, rules.duplicateKey, rules.detectColumnOutliers, index, name,
+    rules.maximum, rules.duplicateKey, rules.detectColumnOutliers, index, name, JSONArray(headerPath).toString(),
 )
 
 internal fun CellEntity.toDomain(rowIndex: Int) = Cell(

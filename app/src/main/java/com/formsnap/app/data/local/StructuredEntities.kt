@@ -39,6 +39,7 @@ data class FieldEntity(
     // Stable original header identity lets display order change without changing source columns.
     val sourceColumnIndex: Int,
     val sourceHeader: String,
+    @ColumnInfo(defaultValue = "'[]'") val headerPath: String = "[]",
 )
 
 @Entity(

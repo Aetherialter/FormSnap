@@ -9,14 +9,15 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [TaskEntity::class, SourceEntity::class, SchemaEntity::class, FieldEntity::class, RowEntity::class, CellEntity::class,
-        PageResultEntity::class, IssueEntity::class, ReviewDecisionEntity::class],
-    version = 5, exportSchema = true,
+        PageResultEntity::class, IssueEntity::class, ReviewDecisionEntity::class, PageStructureEntity::class],
+    version = 6, exportSchema = true,
 )
 abstract class FormSnapDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun sourceDao(): SourceDao
     abstract fun structuredDao(): StructuredDao
     abstract fun qualityDao(): QualityDao
+    abstract fun structureDao(): StructureDao
 
     companion object {
         val MIGRATION_2_3: Migration = StructuredMigration
@@ -27,7 +28,15 @@ abstract class FormSnapDatabase : RoomDatabase() {
                 db.execSQL("UPDATE digitization_tasks SET status = 'REVIEW_REQUIRED' WHERE id IN (SELECT taskId FROM table_schemas)")
             }
         }
-        val ALL_MIGRATIONS get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        val MIGRATION_5_6 = object : Migration(5,6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE field_definitions ADD COLUMN headerPath TEXT NOT NULL DEFAULT '[]'")
+                db.execSQL("CREATE TABLE IF NOT EXISTS page_structures (sourceId TEXT NOT NULL PRIMARY KEY, taskId TEXT NOT NULL, payload TEXT NOT NULL, confirmed INTEGER NOT NULL, revision INTEGER NOT NULL, discardHumanWork INTEGER NOT NULL, FOREIGN KEY(sourceId,taskId) REFERENCES source_documents(id,taskId) ON UPDATE NO ACTION ON DELETE CASCADE)")
+                db.execSQL("CREATE INDEX index_page_structures_sourceId_taskId ON page_structures(sourceId,taskId)")
+                db.execSQL("CREATE INDEX index_page_structures_taskId ON page_structures(taskId)")
+            }
+        }
+        val ALL_MIGRATIONS get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""

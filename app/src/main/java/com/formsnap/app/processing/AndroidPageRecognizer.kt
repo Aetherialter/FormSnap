@@ -12,23 +12,14 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.Executor
 
-class AndroidPageRecognizer(private val images: SourceImageLoader) : PageRecognizer {
-    override suspend fun recognize(source: SourceDocument): CandidatePage = withContext(Dispatchers.Default) {
+class AndroidPageRecognizer(private val images: SourceImageLoader) : StructureRecognizer {
+    override suspend fun inspect(source: SourceDocument): StructureProposal = withContext(Dispatchers.Default) {
         val bitmap = images.load(source.sourceUri)
         val recognizer = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
         // The task completion callback owns the bitmap after submission, even if a coroutine times out.
         var submitted = false
         try {
-            val luminance = ByteArray(bitmap.width * bitmap.height)
-            val pixels = IntArray(bitmap.width)
-            for (y in 0 until bitmap.height) {
-                bitmap.getPixels(pixels, 0, bitmap.width, 0, y, bitmap.width, 1)
-                for (x in pixels.indices) {
-                    val pixel = pixels[x]
-                    luminance[y * bitmap.width + x] = (((pixel shr 16 and 255) * 299 + (pixel shr 8 and 255) * 587 + (pixel and 255) * 114) / 1000).toByte()
-                }
-            }
-            val image = GrayImage(bitmap.width, bitmap.height, luminance)
+            val image = bitmap.gray()
             val grid = GridDetector().detect(image)
             val width = bitmap.width.toFloat()
             val height = bitmap.height.toFloat()
@@ -52,10 +43,27 @@ class AndroidPageRecognizer(private val images: SourceImageLoader) : PageRecogni
                 if (left >= right || top >= bottom || element.text.isBlank()) null
                 else TextEvidence(element.text, SourceRegion(left, top, right, bottom), element.confidence)
             }
-            if (evidence.isEmpty()) throw PageRecognitionException(IssueCode.UNREADABLE, "没有读到可辨认的文字，请重新选择清晰页面。")
-            TableCandidateAssembler().assemble(source.id, image, grid, evidence)
+            TableCandidateAssembler().propose(source.id, image, grid, evidence)
         } finally {
             if (!submitted) { bitmap.recycle(); recognizer.close() }
         }
     }
+
+    override suspend fun revise(source: SourceDocument, grid: TableGrid, text: List<TextEvidence>): StructureProposal = withContext(Dispatchers.Default) {
+        val bitmap=images.load(source.sourceUri)
+        try { TableCandidateAssembler().propose(source.id,bitmap.gray(),grid,text,inferHeader=false) }
+        finally { bitmap.recycle() }
+    }
+}
+
+private fun android.graphics.Bitmap.gray(): GrayImage {
+    val luminance=ByteArray(width*height); val pixels=IntArray(width)
+    for(y in 0 until height) {
+        getPixels(pixels,0,width,0,y,width,1)
+        for(x in pixels.indices) {
+            val p=pixels[x]
+            luminance[y*width+x]=(((p shr 16 and 255)*299+(p shr 8 and 255)*587+(p and 255)*114)/1000).toByte()
+        }
+    }
+    return GrayImage(width,height,luminance)
 }

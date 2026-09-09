@@ -58,7 +58,7 @@ class QualityMigrationTest {
             assertFalse(data.schema.configurationConfirmed)
             assertTrue(db.qualityDao().issues("old").isEmpty())
             assertTrue(db.qualityDao().decisions("old").isEmpty())
-            assertEquals(5, db.openHelper.readableDatabase.version)
+            assertEquals(6, db.openHelper.readableDatabase.version)
         } finally { db.close(); context.deleteDatabase(name) }
     }
 }

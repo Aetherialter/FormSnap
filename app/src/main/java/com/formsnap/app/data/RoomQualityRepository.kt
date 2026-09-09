@@ -78,7 +78,7 @@ class RoomQualityRepository(
         val byId = fields.associateBy { it.id }
         dao.updateFields(existing.map { field ->
             val changed = byId.getValue(field.id)
-            changed.toEntity(field.schemaId, taskId, field.position).copy(sourceColumnIndex = field.sourceColumnIndex, sourceHeader = field.sourceHeader)
+            changed.toEntity(field.schemaId, taskId, field.position).copy(sourceColumnIndex = field.sourceColumnIndex, sourceHeader = field.sourceHeader, headerPath = field.headerPath)
         })
         dao.confirmConfiguration(taskId)
         invalidateExport(taskId)

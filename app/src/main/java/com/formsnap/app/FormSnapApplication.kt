@@ -6,6 +6,7 @@ import com.formsnap.app.data.RoomTaskRepository
 import com.formsnap.app.data.RoomSourceRepository
 import com.formsnap.app.data.RoomQualityRepository
 import com.formsnap.app.data.RoomStructuredRepository
+import com.formsnap.app.data.RoomStructureRepository
 import com.formsnap.app.data.local.FormSnapDatabase
 import com.formsnap.app.data.source.AndroidSourceAccess
 import com.formsnap.app.data.source.SourceImageLoader
@@ -26,7 +27,9 @@ class FormSnapApplication : Application(), Configuration.Provider {
     val structuredRepository by lazy { RoomStructuredRepository(database) }
     val qualityRepository by lazy { RoomQualityRepository(database) }
     val imageLoader by lazy { SourceImageLoader(contentResolver) }
-    val processingRunner by lazy { ProcessingRunner(database, AndroidPageRecognizer(imageLoader)) }
+    private val pageRecognizer by lazy { AndroidPageRecognizer(imageLoader) }
+    val structureRepository by lazy { RoomStructureRepository(database,pageRecognizer) }
+    val processingRunner by lazy { ProcessingRunner(database, pageRecognizer) }
     val processingScheduler by lazy { ProcessingScheduler(this) }
     val exporter by lazy { AndroidXlsxExporter(database, contentResolver, sourceRepository) }
 }
