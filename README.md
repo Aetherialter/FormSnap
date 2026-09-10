@@ -70,6 +70,7 @@ Schema JSON 进入版本控制，冻结旧 Schema 的升级测试验证数据保
 当前交付 Debug APK，不提供正式发布签名。卸载或清除应用数据会删除本地任务；当前不提供应用数据备份与恢复。
 
 当前结构能力见 [V1.1 实施记录](docs/v1.1-structure-plan.md)、[V1.1 验证与限制](docs/v1.1-structure-verification.md) 和 [等价表格样本](real-world-table-fixtures/README.md)。
+用户实际屏摄材料暴露的拒绝/运行问题及修正边界，见 [屏摄原图跟进](docs/screen-photo-followup.md)；几何候选改善不代表该材料已在手机上完整录入。
 原有质量链见 [V1 实施记录](docs/v1-implementation-plan.md)、[V1 验证记录](docs/v1-verification.md) 和 [产品文档差异报告](docs/documentation-gap-report.md)。
 运行 `:app:testDebugUnitTest --tests '*V1QualityBenchmarkTest'` 可单独生成 `app/build/reports/quality/` 下的合成候选、正确答案、XLSX 和质量指标 JSON。
 这些指标验证规则、复核与导出闭环，不能代替真实照片/手写识别的漏检、误报和人工复核率。

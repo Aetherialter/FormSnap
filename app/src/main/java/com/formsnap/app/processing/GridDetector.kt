@@ -6,8 +6,23 @@ import kotlin.math.*
 
 class GrayImage(val width: Int, val height: Int, private val luminance: ByteArray) {
     init { require(width > 0 && height > 0 && width.toLong() * height == luminance.size.toLong()) }
+    private val tilesAcross=(width+31)/32
+    // A photographed gray display is not a white scan. Use local background contrast so
+    // gray UI fills and screen texture do not become line pixels at a fixed threshold.
+    private val lineThresholds: IntArray by lazy {
+        IntArray(tilesAcross*((height+31)/32)) { tile ->
+            val histogram=IntArray(256);var total=0
+            val left=tile%tilesAcross*32;val top=tile/tilesAcross*32
+            for(y in top until minOf(top+32,height))for(x in left until minOf(left+32,width)) {
+                histogram[value(x,y)]++;total++
+            }
+            var count=0
+            val background=histogram.indices.first { count+=histogram[it];count>=total*.85 }
+            minOf(205,background-35)
+        }
+    }
     fun value(x: Int, y: Int) = luminance[y.coerceIn(0,height-1)*width+x.coerceIn(0,width-1)].toInt() and 255
-    fun dark(x: Int,y: Int) = value(x,y)<205
+    fun dark(x: Int,y: Int) = value(x,y)<lineThresholds[y.coerceIn(0,height-1)/32*tilesAcross+x.coerceIn(0,width-1)/32]
     fun ink(region: SourceRegion): Double {
         var count=0; var total=0
         for(y in (region.top*height).toInt() until (region.bottom*height).toInt())
@@ -64,9 +79,10 @@ data class TableGrid(
 data class StructureDetection(val outcome: StructureOutcome,val grid: TableGrid?,val reasons: List<String>)
 
 /** Missing edge segments form graph evidence instead of immediately rejecting the source. */
-class GridDetector {
+class GridDetector(private val checkpoint: () -> Unit = {}) {
     fun recover(image: GrayImage): StructureDetection {
-        val base=LineGeometry().frame(image) ?: return StructureDetection(StructureOutcome.SOURCE_UNUSABLE,null,listOf("未找到可用表格区域，请选择清晰完整的图片。"))
+        checkpoint()
+        val base=LineGeometry(checkpoint).frame(image) ?: return StructureDetection(StructureOutcome.SOURCE_UNUSABLE,null,listOf("未找到可用表格区域，请选择清晰完整的图片。"))
         val grid=graph(image,base)
         return StructureDetection(grid.outcome,grid,grid.reasons)
     }
@@ -77,6 +93,7 @@ class GridDetector {
         fun root(value: Int): Int { var x=value; while(parent[x]!=x) { parent[x]=parent[parent[x]]; x=parent[x] }; return x }
         fun union(a: Int,b: Int) { parent[root(a)]=root(b) }
         fun coverage(x1: Float,y1: Float,x2: Float,y2: Float): Double {
+            checkpoint()
             val steps=max(abs(x2-x1),abs(y2-y1)).toInt().coerceAtLeast(1)
             // Line voting uses a bounded, downsampled image; allow its pixel quantization here.
             val radius=max(1,ceil(max(image.width,image.height)/1000.0).toInt())

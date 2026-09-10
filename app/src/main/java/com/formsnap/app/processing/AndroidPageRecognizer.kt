@@ -10,17 +10,33 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.TimeoutCancellationException
 import java.util.concurrent.Executor
 
 class AndroidPageRecognizer(private val images: SourceImageLoader) : StructureRecognizer {
     override suspend fun inspect(source: SourceDocument): StructureProposal = withContext(Dispatchers.Default) {
-        val bitmap = images.load(source.sourceUri)
+        inspectBitmap(source.id,images.load(source.sourceUri))
+    }
+
+    /** Same on-device pipeline, accepting an already upright image for isolated model tests.
+     * This method takes bitmap ownership just as inspect(SourceDocument) does. */
+    internal suspend fun inspectBitmap(sourceId: String,bitmap: android.graphics.Bitmap): StructureProposal = withContext(Dispatchers.Default) {
         val recognizer = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
         // The task completion callback owns the bitmap after submission, even if a coroutine times out.
         var submitted = false
         try {
             val image = bitmap.gray()
-            val grid = GridDetector().detect(image)
+            val grid = try {
+                withTimeout(20_000) {
+                    val context=currentCoroutineContext()
+                    GridDetector { context.ensureActive() }.detect(image)
+                }
+            } catch(timeout: TimeoutCancellationException) {
+                currentCoroutineContext().ensureActive()
+                throw PageRecognitionException(IssueCode.STRUCTURE_WARNING,"此页结构分析耗时过长。请裁去图片中的软件界面或分批整理后重试；已保存的数据仍保留。")
+            }
             val width = bitmap.width.toFloat()
             val height = bitmap.height.toFloat()
             val task = recognizer.process(InputImage.fromBitmap(bitmap, 0))
@@ -43,7 +59,7 @@ class AndroidPageRecognizer(private val images: SourceImageLoader) : StructureRe
                 if (left >= right || top >= bottom || element.text.isBlank()) null
                 else TextEvidence(element.text, SourceRegion(left, top, right, bottom), element.confidence)
             }
-            TableCandidateAssembler().propose(source.id, image, grid, evidence)
+            TableCandidateAssembler().propose(sourceId, image, grid, evidence)
         } finally {
             if (!submitted) { bitmap.recycle(); recognizer.close() }
         }

@@ -24,6 +24,7 @@ android {
     buildFeatures { compose = true }
     testOptions { unitTests.isIncludeAndroidResources = true }
     sourceSets.getByName("test").resources.directories.add("schemas")
+    sourceSets.getByName("androidTest").assets.directories.add(rootProject.file("real-world-table-fixtures").absolutePath)
 }
 
 kotlin {
