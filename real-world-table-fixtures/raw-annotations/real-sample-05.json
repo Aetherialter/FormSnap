@@ -1,0 +1,16 @@
+{
+  "sampleId": "REAL_SAMPLE_05",
+  "annotationStatus": "PROPOSED",
+  "sourceFile": "real-sample-05.jpg",
+  "tableBounds": { "left": 0.210, "top": 0.104, "right": 0.700, "bottom": 0.843, "coordinateSpace": "normalized_image" },
+  "expectedLeafColumns": 4,
+  "expectedHeaderDepth": 1,
+  "expectedDataRowRange": { "firstVisibleRow": 2, "lastVisibleRow": 51, "completeness": "VISIBLE_RANGE" },
+  "expectedMergedRegions": [],
+  "isLeftClipped": false,
+  "isRightClipped": false,
+  "isTopClipped": false,
+  "isBottomClipped": false,
+  "expectedStructureOutcome": "STRUCTURE_REVIEW_REQUIRED",
+  "notes": "Visible spreadsheet region contains four populated columns A-D and approximately 50 data rows. The surrounding application navigation and blank columns are not table columns."
+}

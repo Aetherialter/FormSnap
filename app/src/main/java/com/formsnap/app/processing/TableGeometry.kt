@@ -22,9 +22,13 @@ data class TableQuad(val topLeft: TablePoint,val topRight: TablePoint,val bottom
 }
 
 /** Bounded geometric line voting with gap/slope tolerance. OCR never supplies separator locations. */
+internal data class GeometryFrame(val grid: TableGrid,val diagnostics: StructureDiagnostics)
+
 internal class LineGeometry(private val checkpoint: () -> Unit = {}) {
     private data class Line(val slope: Float,val intercept: Float,val start: Int,val end: Int,val score: Int) { fun at(v: Float)=slope*v+intercept }
-    fun frame(original: GrayImage): TableGrid? {
+    private data class LineResult(val lines: List<Line>,val candidateCount: Int)
+
+    fun frame(original: GrayImage): GeometryFrame? {
         val scale=max(1,ceil(max(original.width,original.height)/1000.0).toInt()); val w=original.width/scale; val h=original.height/scale
         if(w<40 || h<40)return null
         val image=GrayImage(w,h,ByteArray(w*h) { n ->
@@ -33,7 +37,7 @@ internal class LineGeometry(private val checkpoint: () -> Unit = {}) {
             v.toByte()
         })
         val horizontal=lines(image,true);val vertical=lines(image,false)
-        var hs=coherent(horizontal,w,h);var vs=coherent(vertical,h,w)
+        var hs=coherent(horizontal.lines,w,h);var vs=coherent(vertical.lines,h,w)
         fun cross(a: Line,b: Line): TablePoint { val x=(b.slope*a.intercept+b.intercept)/(1-b.slope*a.slope); return TablePoint(x,a.at(x)) }
         fun connected(a: Line,b: Line): Boolean { val p=cross(a,b); return p.x>=a.start-5 && p.x<=a.end+5 && p.y>=b.start-5 && p.y<=b.end+5 }
         // A sidebar can bridge otherwise separate regions with a handful of menu rules.
@@ -81,7 +85,7 @@ internal class LineGeometry(private val checkpoint: () -> Unit = {}) {
             if(!axis)add("已按线条交点对齐轻微方向或透视变化，请核对覆盖位置。")
             if(groups.size>1)add("发现多个表格区域，请核对所选主表。")
             if(weakRows.isNotEmpty())add("已排除疑似文字形成的横线，请核对是否需要补充分割。")
-            if(horizontal.size-hs.size>max(4,hs.size/3) || vertical.size-vs.size>max(4,vs.size/3))add("图片中存在较多背景或界面干扰，请核对所选表格区域。")
+            if(horizontal.lines.size-hs.size>max(4,hs.size/3) || vertical.lines.size-vs.size>max(4,vs.size/3))add("图片中存在较多背景或界面干扰，请核对所选表格区域。")
             if(points.any { it.x<.003 || it.y<.003 || it.x>.997 || it.y>.997 })add("表格贴近图片边缘，请检查是否完整。")
             if(clippedEdges)add("检测到表格边界可能被裁切，已保留可见区域并要求补充核对。")
         }
@@ -91,11 +95,12 @@ internal class LineGeometry(private val checkpoint: () -> Unit = {}) {
         if(clippedLeft)recoveredXs.add(0,0)
         if(clippedBottom)recoveredYs+=ch
         if(clippedTop)recoveredYs.add(0,0)
-        return when {
+        val grid=when {
             axis -> TableGrid(vs.map { (it.intercept*scale).roundToInt().coerceIn(0,original.width) },hs.map { (it.intercept*scale).roundToInt().coerceIn(0,original.height) },original.width,original.height,reasons=reasons)
             clippedEdges -> TableGrid(recoveredXs.distinct().sorted(),recoveredYs.distinct().sorted(),cw,ch,quad=quad,reasons=reasons)
             else -> TableGrid(xs,ys,cw,ch,quad=quad,reasons=reasons)
         }
+        return GeometryFrame(grid,StructureDiagnostics(horizontal.candidateCount,vertical.candidateCount,hs.size,vs.size))
     }
 
     /** Projective parallel rulings form a family: their slopes vary linearly with position.
@@ -119,7 +124,7 @@ internal class LineGeometry(private val checkpoint: () -> Unit = {}) {
         return best
     }
 
-    private fun lines(image: GrayImage,horizontal: Boolean): List<Line> {
+    private fun lines(image: GrayImage,horizontal: Boolean): LineResult {
         val length=if(horizontal)image.width else image.height; val breadth=if(horizontal)image.height else image.width
         val points=mutableListOf<Pair<Int,Int>>()
         for(b in 0 until breadth)for(a in 0 until length)if(if(horizontal)image.dark(a,b) else image.dark(b,a))points+=a to b
@@ -174,7 +179,7 @@ internal class LineGeometry(private val checkpoint: () -> Unit = {}) {
             })selected+=line
             if(selected.size>=600)break
         }
-        return selected.map { line ->
+        val refined=selected.map { line ->
             checkpoint()
             if(abs(line.slope)<.001f)return@map line
             // Refine the coarse 0.01 slope vote using the nearest dark stroke. A rounding step
@@ -192,5 +197,6 @@ internal class LineGeometry(private val checkpoint: () -> Unit = {}) {
             val slope=(samples.sumOf { (it.first-x)*(it.second-y) }/denominator).toFloat()
             line.copy(slope=slope,intercept=(y-slope*x).toFloat())
         }
+        return LineResult(refined,candidates.size)
     }
 }

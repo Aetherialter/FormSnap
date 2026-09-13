@@ -13,3 +13,4 @@ keystore.properties
 .DS_Store
 Thumbs.db
 real-world-table-fixtures/raw-real-samples/
+real-world-table-fixtures/debug-overlays/

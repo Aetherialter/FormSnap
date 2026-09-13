@@ -84,7 +84,23 @@ data class TableGrid(
     }
 }
 
-data class StructureDetection(val outcome: StructureOutcome,val grid: TableGrid?,val reasons: List<String>)
+data class StructureDiagnostics(
+    val horizontalCandidateLines: Int = 0,
+    val verticalCandidateLines: Int = 0,
+    val horizontalSelectedLines: Int = 0,
+    val verticalSelectedLines: Int = 0,
+) {
+    val rejectedLineCandidates: Int
+        get() = (horizontalCandidateLines - horizontalSelectedLines).coerceAtLeast(0) +
+            (verticalCandidateLines - verticalSelectedLines).coerceAtLeast(0)
+}
+
+data class StructureDetection(
+    val outcome: StructureOutcome,
+    val grid: TableGrid?,
+    val reasons: List<String>,
+    val diagnostics: StructureDiagnostics = StructureDiagnostics(),
+)
 
 /** Missing edge segments form graph evidence instead of immediately rejecting the source. */
 data class StructureDetectorPolicy(val lineTileSize:Int=32,val lineContrast:Int=35,val lineCap:Int=205)
@@ -93,9 +109,9 @@ class GridDetector(private val policy: StructureDetectorPolicy = StructureDetect
     fun recover(image: GrayImage): StructureDetection {
         checkpoint()
         val working=image.withLinePolicy(policy.lineTileSize,policy.lineContrast,policy.lineCap)
-        val base=LineGeometry(checkpoint).frame(working) ?: return StructureDetection(StructureOutcome.SOURCE_UNUSABLE,null,listOf("未找到可用表格区域，请选择清晰完整的图片。"))
-        val grid=graph(working,base)
-        return StructureDetection(grid.outcome,grid,grid.reasons)
+        val frame=LineGeometry(checkpoint).frame(working) ?: return StructureDetection(StructureOutcome.SOURCE_UNUSABLE,null,listOf("未找到可用表格区域，请选择清晰完整的图片。"))
+        val grid=graph(working,frame.grid)
+        return StructureDetection(grid.outcome,grid,grid.reasons,frame.diagnostics)
     }
     fun detect(image: GrayImage)=recover(image).grid ?: throw PageRecognitionException(IssueCode.UNREADABLE,"未找到有效表格区域，请检查原图。")
 

@@ -1,0 +1,16 @@
+{
+  "sampleId": "REAL_SAMPLE_03",
+  "annotationStatus": "PROPOSED",
+  "sourceFile": "real-sample-03.jpg",
+  "tableBounds": { "left": 0.064, "top": 0.080, "right": 0.925, "bottom": 0.716, "coordinateSpace": "normalized_image" },
+  "expectedLeafColumns": 6,
+  "expectedHeaderDepth": 1,
+  "expectedDataRowRange": { "firstVisibleRow": 2, "lastVisibleRow": 39, "completeness": "CLIPPED_AT_BOTTOM" },
+  "expectedMergedRegions": [],
+  "isLeftClipped": false,
+  "isRightClipped": true,
+  "isTopClipped": false,
+  "isBottomClipped": true,
+  "expectedStructureOutcome": "STRUCTURE_REVIEW_REQUIRED",
+  "notes": "Visible region contains columns A-F with the lower rows cut by the spreadsheet viewport and the right edge close to the screen boundary. The row range records visible evidence only; full sheet extent is unknown."
+}

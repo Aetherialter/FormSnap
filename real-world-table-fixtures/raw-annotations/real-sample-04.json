@@ -1,0 +1,16 @@
+{
+  "sampleId": "REAL_SAMPLE_04",
+  "annotationStatus": "PROPOSED",
+  "sourceFile": "real-sample-04.jpg",
+  "tableBounds": { "left": 0.125, "top": 0.073, "right": 0.726, "bottom": 0.744, "coordinateSpace": "normalized_image" },
+  "expectedLeafColumns": 4,
+  "expectedHeaderDepth": 1,
+  "expectedDataRowRange": { "firstVisibleRow": 2, "lastVisibleRow": 39, "completeness": "CLIPPED_AT_BOTTOM" },
+  "expectedMergedRegions": [],
+  "isLeftClipped": false,
+  "isRightClipped": false,
+  "isTopClipped": false,
+  "isBottomClipped": true,
+  "expectedStructureOutcome": "STRUCTURE_REVIEW_REQUIRED",
+  "notes": "Visible populated table is A-D. The bottom row area is cut by the spreadsheet viewport, so the visible row range is a lower bound rather than a full document annotation."
+}

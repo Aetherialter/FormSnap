@@ -1,0 +1,16 @@
+{
+  "sampleId": "REAL_SAMPLE_02",
+  "annotationStatus": "PROPOSED",
+  "sourceFile": "real-sample-02.jpg",
+  "tableBounds": { "left": 0.198, "top": 0.041, "right": 0.634, "bottom": 0.753, "coordinateSpace": "normalized_image" },
+  "expectedLeafColumns": 4,
+  "expectedHeaderDepth": 1,
+  "expectedDataRowRange": { "firstVisibleRow": 2, "lastVisibleRow": 51, "completeness": "VISIBLE_RANGE" },
+  "expectedMergedRegions": [],
+  "isLeftClipped": false,
+  "isRightClipped": false,
+  "isTopClipped": false,
+  "isBottomClipped": false,
+  "expectedStructureOutcome": "STRUCTURE_REVIEW_REQUIRED",
+  "notes": "Visible spreadsheet region contains four populated columns A-D and approximately 50 data rows. Screen chrome and blank spreadsheet columns are outside the proposed table. Bounds and row count remain provisional until independently verified."
+}

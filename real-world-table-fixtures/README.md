@@ -29,3 +29,17 @@
 5. 完成值复核及字段配置后导出，检查最终确认值和来源定位。另用实际拍摄的脱敏材料核验反光、文字挤线和真实OCR误差。
 
 自动测试中的边框、文字框匹配通过不代表这些设备步骤已通过。
+
+## 结构诊断与回归
+
+`StructureDiagnostics` 只记录检测过程的候选线规模和最终选中线数量，不改变 `TableGrid`、合并单元格或 Review 安全门槛。它支持回归报告区分“候选线很多”和“最终表格结构”，避免把候选行列数量当作真值。
+
+本地真实样本回归读取 `raw-real-samples/`，并将结果写入 `app/build/reports/structure/real-sample-regression.tsv`；Overlay 写入 `debug-overlays/`。没有真实图片的环境会跳过该本地测试，不会因为私人原图不在 CI 而失败。
+
+匿名鲁棒性回归运行：
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests '*StructureRobustnessBenchmarkTest'
+```
+
+该回归覆盖 20–40 列窄列、混合列宽、低对比度竖线、屏摄噪声、多级/合并表头、左右裁切、部分末列裁切，以及亮度、对比度、JPEG 质量、轻微旋转和裁切稳定性。真实样本 annotation 仍必须先经过人工核验，才可升级为 `VERIFIED` 并进入真实准确率指标。
