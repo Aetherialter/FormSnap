@@ -9,7 +9,7 @@
 - `app/build/reports/structure/dataset-manifest.tsv`：split、case id、seed；
 - `app/build/reports/structure/dataset-splits.tsv`：检测状态、行列边界召回、预期/实际结构状态及已知干扰线数量。
 
-`StructureDatasetHarnessTest` 当前是基线评分闭环：它验证分片不重叠、HOLDOUT 不发生灾难性行列丢失，并留下可比较的边界指标。它不会通过删除候选线来降低 crossing，也不会改变 Validation 安全门禁。真实图片只作为本地 TRAIN + regression 观察，不复制进 fixture、测试 APK 或 HOLDOUT。
+`StructureDatasetHarnessTest` 当前是基线评分闭环：它验证分片不重叠、HOLDOUT 不发生灾难性行列丢失，并留下可比较的边界指标。它不会通过删除候选线来降低 crossing，也不会改变 Validation 安全门禁。所有真实原始图片只作为本地 `REAL_RAW` 或既有 TRAIN + regression 观察，不复制进 synthetic fixture、测试 APK 或 HOLDOUT。
 
 运行：
 
