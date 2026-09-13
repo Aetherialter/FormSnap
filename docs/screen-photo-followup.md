@@ -4,7 +4,7 @@
 
 ## 已证实的故障
 
-使用用户提供的4072×3070 JPEG，按生产SourceImageLoader同样的1/2采样解码为2036×1535，在Robolectric NATIVE下运行真实GrayImage/GridDetector。
+使用当前 Real Sample #1 屏摄图，按生产SourceImageLoader同样的1/2采样解码，在Robolectric NATIVE下运行真实GrayImage/GridDetector。
 修复前：固定205阈值把灰背景与屏幕纹理当作线条，341条横线、191条竖线候选形成一个大连接区域；竖线超过128列结构容量，直接返回SOURCE_UNUSABLE。OCR尚未运行。
 
 这是结构拒绝的直接证据，并不是手机崩溃原因的证明。设备历史退出记录只见USER REQUESTED/FORCE STOP，没有本次崩溃栈；设备已安装APK哈希与上轮最终构建不同，版本未对齐。
@@ -21,9 +21,9 @@
 
 ## 原图结果与局限
 
-相同原图当前返回STRUCTURE_REVIEW_REQUIRED。本地检查同时断言候选列数20–30、行数25–35、主表左/上范围及底部范围，确认不是用包含整屏的虚假网格来“通过”。最终候选24列、28行（含表头区域），可见数据区大部分分割与原图对应。
+当前样本返回STRUCTURE_REVIEW_REQUIRED。本地 JVM 检查确认候选定位到主表区域而不是整屏，当前恢复出6列、34行；这些是检测候选数量，尚未经过独立人工标注确认，也仍然要求用户复核。该结果作为Real Sample #1的TRAIN + regression记录，不能作为通过证据，也不进入HOLDOUT。
 
-覆盖图人工检查：顶部工具栏与底部任务栏已排除，伪表头横线已去除。仍有右侧列截断/遗漏、下方局部边线偏差以及错误合并，须调整区域/分割/合并及Header范围。这里的24列/28行是候选结果，不是经过独立标注确认的完整行列答案，更不是该材料已完整录入。
+当前候选仍可能存在边界偏差、分割遗漏或错误合并，后续应通过通用的区域、分割、合并和Header确认能力处理。不得把当前候选数量描述为该材料已经完整录入。
 
 原图含个人信息，只用于本地复现；图像、OCR个人信息、原图绝对路径与本地探针均不提交。诊断覆盖图及探针只放在被忽略的build/.gradle目录。正式回归使用完全虚构的灰屏像素。
 
@@ -34,10 +34,10 @@
 
 初次升级时ADB断开，随后V2573A恢复连接，修复APK与独立测试APK均保留数据安装成功。没有清除应用数据或更改权限。
 
-**原图真机模型验证通过**：AndroidJUnitRunner调用生产的同一个`inspectBitmap`计算路径（SourceDocument入口委托此方法，Bitmap所有权及资源释放保持一致）。实际GridDetector→ML Kit→Assembler在5162ms返回STRUCTURE_REVIEW_REQUIRED：28行、24列、293个OCR框、25个跨界框，测试正常结束。只输出数量、耗时和状态，不输出姓名、学号或成绩。该测试不写入用户任务数据库；原图仅短暂放入本地测试APK，验证后移除，不进入Git或最终测试APK。
+**上一张Real Sample的真机模型验证通过**：AndroidJUnitRunner调用生产的同一个`inspectBitmap`计算路径（SourceDocument入口委托此方法，Bitmap所有权及资源释放保持一致）。实际GridDetector→ML Kit→Assembler在5162ms返回STRUCTURE_REVIEW_REQUIRED：28行、24列、293个OCR框、25个跨界框，测试正常结束。只输出数量、耗时和状态，不输出姓名、学号或成绩。该测试不写入用户任务数据库；该样本仅短暂放入本地测试APK，验证后移除，不进入Git或最终测试APK。这个结果不代表当前Real Sample #1已完成真机验证。
 
-这证实此版本在该设备上跑完该图的核心处理，没有复现卡住/崩溃。它不涵盖用户原任务的WorkManager调度、文件授权、字段/值确认和最终导出，也不能证明既有“一直整理中/退出”的所有原因都已消除。
-正式设备回归RecognitionSmokeTest使用已提交的完全虚构中文36列表，调用同一真实模型；另保留LaunchSmokeTest。手机上本图的人工结构确认和完整录入验收仍待执行。
+这证实上一张样本在该设备上跑完核心处理，没有复现卡住/崩溃。它不涵盖用户原任务的WorkManager调度、文件授权、字段/值确认和最终导出，也不能证明既有“一直整理中/退出”的所有原因都已消除。
+正式设备回归RecognitionSmokeTest使用已提交的完全虚构中文36列表，调用同一真实模型；另保留LaunchSmokeTest。当前Real Sample #1尚未完成真机ML Kit验证、人工结构确认和完整录入验收。
 
 清理原图后，最终测试APK的assets仅包含公开人工样本与标注，已重新安装替换临时测试APK。RecognitionSmokeTest收到方法成功状态；随后LaunchSmokeTest没有收到最终结果，采集时设备前台已切到其他应用。只停止本轮持有的悬挂ADB测试客户端，不把这个组合运行记录成“2项设备测试通过”，也未操作其他前台应用。
 

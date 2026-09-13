@@ -69,15 +69,33 @@ internal class LineGeometry(private val checkpoint: () -> Unit = {}) {
         val ys=hs.map { quad.inverse(TablePoint(mid.x,it.at(mid.x*original.width/scale)*scale/original.height)).y.times(ch).roundToInt().coerceIn(0,ch) }.distinct()
         if(xs.size<2 || ys.size<3 || xs.zipWithNext().any { it.second-it.first<4 } || ys.zipWithNext().any { it.second-it.first<4 })return null
         val axis=hs.all { abs(it.slope)<.001 } && vs.all { abs(it.slope)<.001 }
+        // Only treat an edge as clipped when the recovered intersection itself is just
+        // outside the image. A large margin around an ordinary perspective table is not
+        // evidence of cropping and must not change the coordinate system.
+        val clippedLeft=corners[0].x<0 || corners[3].x<0
+        val clippedRight=corners[1].x> w || corners[2].x> w
+        val clippedTop=corners[0].y<0 || corners[1].y<0
+        val clippedBottom=corners[2].y>h || corners[3].y>h
+        val clippedEdges=!axis && (clippedLeft || clippedRight || clippedTop || clippedBottom)
         val reasons=buildList {
             if(!axis)add("已按线条交点对齐轻微方向或透视变化，请核对覆盖位置。")
             if(groups.size>1)add("发现多个表格区域，请核对所选主表。")
             if(weakRows.isNotEmpty())add("已排除疑似文字形成的横线，请核对是否需要补充分割。")
             if(horizontal.size-hs.size>max(4,hs.size/3) || vertical.size-vs.size>max(4,vs.size/3))add("图片中存在较多背景或界面干扰，请核对所选表格区域。")
             if(points.any { it.x<.003 || it.y<.003 || it.x>.997 || it.y>.997 })add("表格贴近图片边缘，请检查是否完整。")
+            if(clippedEdges)add("检测到表格边界可能被裁切，已保留可见区域并要求补充核对。")
         }
-        return if(axis)TableGrid(vs.map { (it.intercept*scale).roundToInt().coerceIn(0,original.width) },hs.map { (it.intercept*scale).roundToInt().coerceIn(0,original.height) },original.width,original.height,reasons=reasons)
-        else TableGrid(xs,ys,cw,ch,quad=quad,reasons=reasons)
+        val recoveredXs=xs.toMutableList()
+        val recoveredYs=ys.toMutableList()
+        if(clippedRight)recoveredXs+=cw
+        if(clippedLeft)recoveredXs.add(0,0)
+        if(clippedBottom)recoveredYs+=ch
+        if(clippedTop)recoveredYs.add(0,0)
+        return when {
+            axis -> TableGrid(vs.map { (it.intercept*scale).roundToInt().coerceIn(0,original.width) },hs.map { (it.intercept*scale).roundToInt().coerceIn(0,original.height) },original.width,original.height,reasons=reasons)
+            clippedEdges -> TableGrid(recoveredXs.distinct().sorted(),recoveredYs.distinct().sorted(),cw,ch,quad=quad,reasons=reasons)
+            else -> TableGrid(xs,ys,cw,ch,quad=quad,reasons=reasons)
+        }
     }
 
     /** Projective parallel rulings form a family: their slopes vary linearly with position.

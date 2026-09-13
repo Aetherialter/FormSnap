@@ -19,7 +19,13 @@ class GrayImage(val width: Int, val height: Int, private val luminance: ByteArra
             }
             var count=0
             val background=histogram.indices.first { count+=histogram[it];count>=total*.85 }
-            minOf(lineCap,background-lineContrast)
+            count=0
+            val median=histogram.indices.first { count+=histogram[it];count>=total*.50 }
+            // Photos of LCD/printed gray tables often have only a small global contrast range.
+            // Lower the contrast requirement in that case, while retaining a floor that rejects
+            // the broad gray background rather than treating it as ink.
+            val contrast=if(background<230)maxOf(12, minOf(lineContrast,background-median-2)) else lineContrast
+            minOf(lineCap,background-contrast)
         }
     }
     fun value(x: Int, y: Int) = luminance[y.coerceIn(0,height-1)*width+x.coerceIn(0,width-1)].toInt() and 255
