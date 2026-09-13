@@ -4,7 +4,7 @@
 
 面向批量纸质业务表单的结构化录入、数据质量检查与异常复核工具。
 当前已实现 V1 应用闭环：任务 → 多图片导入 → 后台整理 → 字段配置 → 异常复核与原纸定位 → 完整数据 → XLSX。
-V1.1 已加入复杂表格结构恢复、持久结构确认和任务内模板复用。本机133项测试、Debug和Lint通过；本轮早期版本曾成功安装到V2573A，最终版本升级尝试被系统拒绝，真实拍摄材料、模型效果及手机操作尚未完成验收。
+V1.1 已加入复杂表格结构恢复、持久结构确认和任务内模板复用。本机136项测试、Debug和Lint通过；真实材料核心模型路径已在V2573A完成一次只读验证，完整用户流程仍待验收。
 只保存来源引用，不复制原图；模型随 APK 打包，应用不申请联网权限。
 
 ## 当前使用路径与限制
@@ -71,6 +71,7 @@ Schema JSON 进入版本控制，冻结旧 Schema 的升级测试验证数据保
 
 当前结构能力见 [V1.1 实施记录](docs/v1.1-structure-plan.md)、[V1.1 验证与限制](docs/v1.1-structure-verification.md) 和 [等价表格样本](real-world-table-fixtures/README.md)。
 用户实际屏摄材料暴露的拒绝/运行问题及修正边界，见 [屏摄原图跟进](docs/screen-photo-followup.md)；几何候选改善不代表该材料已在手机上完整录入。
+结构生成、TRAIN/VALIDATION/HOLDOUT 分片和指标输出见 [Autonomous Structure Harness](docs/structure-harness.md)。
 原有质量链见 [V1 实施记录](docs/v1-implementation-plan.md)、[V1 验证记录](docs/v1-verification.md) 和 [产品文档差异报告](docs/documentation-gap-report.md)。
 运行 `:app:testDebugUnitTest --tests '*V1QualityBenchmarkTest'` 可单独生成 `app/build/reports/quality/` 下的合成候选、正确答案、XLSX 和质量指标 JSON。
 这些指标验证规则、复核与导出闭环，不能代替真实照片/手写识别的漏检、误报和人工复核率。

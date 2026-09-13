@@ -4,25 +4,27 @@ import com.formsnap.app.domain.model.SourceRegion
 import com.formsnap.app.validation.IssueCode
 import kotlin.math.*
 
-class GrayImage(val width: Int, val height: Int, private val luminance: ByteArray) {
+class GrayImage(val width: Int, val height: Int, private val luminance: ByteArray,
+    private val lineTileSize: Int = 32, private val lineContrast: Int = 35, private val lineCap: Int = 205) {
     init { require(width > 0 && height > 0 && width.toLong() * height == luminance.size.toLong()) }
-    private val tilesAcross=(width+31)/32
+    private val tilesAcross=(width+lineTileSize-1)/lineTileSize
     // A photographed gray display is not a white scan. Use local background contrast so
     // gray UI fills and screen texture do not become line pixels at a fixed threshold.
     private val lineThresholds: IntArray by lazy {
-        IntArray(tilesAcross*((height+31)/32)) { tile ->
+        IntArray(tilesAcross*((height+lineTileSize-1)/lineTileSize)) { tile ->
             val histogram=IntArray(256);var total=0
-            val left=tile%tilesAcross*32;val top=tile/tilesAcross*32
-            for(y in top until minOf(top+32,height))for(x in left until minOf(left+32,width)) {
+            val left=tile%tilesAcross*lineTileSize;val top=tile/tilesAcross*lineTileSize
+            for(y in top until minOf(top+lineTileSize,height))for(x in left until minOf(left+lineTileSize,width)) {
                 histogram[value(x,y)]++;total++
             }
             var count=0
             val background=histogram.indices.first { count+=histogram[it];count>=total*.85 }
-            minOf(205,background-35)
+            minOf(lineCap,background-lineContrast)
         }
     }
     fun value(x: Int, y: Int) = luminance[y.coerceIn(0,height-1)*width+x.coerceIn(0,width-1)].toInt() and 255
-    fun dark(x: Int,y: Int) = value(x,y)<lineThresholds[y.coerceIn(0,height-1)/32*tilesAcross+x.coerceIn(0,width-1)/32]
+    fun dark(x: Int,y: Int) = value(x,y)<lineThresholds[y.coerceIn(0,height-1)/lineTileSize*tilesAcross+x.coerceIn(0,width-1)/lineTileSize]
+    internal fun withLinePolicy(tileSize:Int,contrast:Int,cap:Int)=GrayImage(width,height,luminance.copyOf(),tileSize,contrast,cap)
     fun ink(region: SourceRegion): Double {
         var count=0; var total=0
         for(y in (region.top*height).toInt() until (region.bottom*height).toInt())
@@ -79,11 +81,14 @@ data class TableGrid(
 data class StructureDetection(val outcome: StructureOutcome,val grid: TableGrid?,val reasons: List<String>)
 
 /** Missing edge segments form graph evidence instead of immediately rejecting the source. */
-class GridDetector(private val checkpoint: () -> Unit = {}) {
+data class StructureDetectorPolicy(val lineTileSize:Int=32,val lineContrast:Int=35,val lineCap:Int=205)
+
+class GridDetector(private val policy: StructureDetectorPolicy = StructureDetectorPolicy(), private val checkpoint: () -> Unit = {}) {
     fun recover(image: GrayImage): StructureDetection {
         checkpoint()
-        val base=LineGeometry(checkpoint).frame(image) ?: return StructureDetection(StructureOutcome.SOURCE_UNUSABLE,null,listOf("未找到可用表格区域，请选择清晰完整的图片。"))
-        val grid=graph(image,base)
+        val working=image.withLinePolicy(policy.lineTileSize,policy.lineContrast,policy.lineCap)
+        val base=LineGeometry(checkpoint).frame(working) ?: return StructureDetection(StructureOutcome.SOURCE_UNUSABLE,null,listOf("未找到可用表格区域，请选择清晰完整的图片。"))
+        val grid=graph(working,base)
         return StructureDetection(grid.outcome,grid,grid.reasons)
     }
     fun detect(image: GrayImage)=recover(image).grid ?: throw PageRecognitionException(IssueCode.UNREADABLE,"未找到有效表格区域，请检查原图。")
