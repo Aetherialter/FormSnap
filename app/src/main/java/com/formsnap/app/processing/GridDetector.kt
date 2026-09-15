@@ -29,7 +29,8 @@ class GrayImage(val width: Int, val height: Int, private val luminance: ByteArra
         }
     }
     fun value(x: Int, y: Int) = luminance[y.coerceIn(0,height-1)*width+x.coerceIn(0,width-1)].toInt() and 255
-    fun dark(x: Int,y: Int) = value(x,y)<lineThresholds[y.coerceIn(0,height-1)/lineTileSize*tilesAcross+x.coerceIn(0,width-1)/lineTileSize]
+    internal fun lineThreshold(x: Int, y: Int) = lineThresholds[y.coerceIn(0,height-1)/lineTileSize*tilesAcross+x.coerceIn(0,width-1)/lineTileSize]
+    fun dark(x: Int,y: Int) = value(x,y)<lineThreshold(x,y)
     internal fun withLinePolicy(tileSize:Int,contrast:Int,cap:Int)=GrayImage(width,height,luminance.copyOf(),tileSize,contrast,cap)
     fun ink(region: SourceRegion): Double {
         var count=0; var total=0
@@ -40,6 +41,34 @@ class GrayImage(val width: Int, val height: Int, private val luminance: ByteArra
 }
 
 enum class StructureOutcome { AUTO_ACCEPTED, STRUCTURE_REVIEW_REQUIRED, SOURCE_UNUSABLE }
+
+enum class ClippingEvidence {
+    NO_CLIPPING_EVIDENCE,
+    POSSIBLE_CLIPPING,
+    LIKELY_CLIPPED_LEFT,
+    LIKELY_CLIPPED_RIGHT,
+    LIKELY_CLIPPED_BOTH,
+}
+
+enum class CandidateAxis { HORIZONTAL, VERTICAL }
+
+enum class CandidateDisposition { SELECTED, MERGED, REJECTED_HIGH_SCORE, REJECTED_LOW_SCORE }
+
+/** A bounded, normalized description of a proposed ruling used for local diagnostics only. */
+data class LineCandidateDiagnostic(
+    val axis: CandidateAxis,
+    val normalizedPosition: Float,
+    val normalizedStart: Float,
+    val normalizedEnd: Float,
+    val score: Double,
+    val continuity: Double,
+    val normalizedLength: Double,
+    val disposition: CandidateDisposition,
+    val mergeGroupSize: Int = 1,
+    val normalizedStartPosition: Float = normalizedPosition,
+    val normalizedEndPosition: Float = normalizedPosition,
+)
+
 data class GridCell(val row: Int,val column: Int,val rowSpan: Int=1,val colSpan: Int=1) {
     init { require(row>=0 && column>=0 && rowSpan>0 && colSpan>0) }
     fun contains(r: Int,c: Int)=r in row until row+rowSpan && c in column until column+colSpan
@@ -50,6 +79,7 @@ data class TableGrid(
     val xs: List<Int>,val ys: List<Int>,val width: Int,val height: Int,
     val merged: List<GridCell> = emptyList(),val headerStart: Int=0,val headerEnd: Int=1,
     val quad: TableQuad?=null,val outcome: StructureOutcome=StructureOutcome.AUTO_ACCEPTED,val reasons: List<String> = emptyList(),
+    val clippingEvidence: ClippingEvidence = ClippingEvidence.NO_CLIPPING_EVIDENCE,
 ) {
     val columns get()=xs.size-1
     val rows get()=ys.size-1
@@ -84,15 +114,42 @@ data class TableGrid(
     }
 }
 
+data class GeometryStageDiagnostic(
+    val stage: String,
+    val horizontal: List<LineCandidateDiagnostic>,
+    val vertical: List<LineCandidateDiagnostic>,
+    val intersections: Int = 0,
+)
+
 data class StructureDiagnostics(
+    val failureStage: String? = null,
+    val geometryStages: List<GeometryStageDiagnostic> = emptyList(),
+    val proposedQuad: TableQuad? = null,
     val horizontalCandidateLines: Int = 0,
     val verticalCandidateLines: Int = 0,
     val horizontalSelectedLines: Int = 0,
     val verticalSelectedLines: Int = 0,
+    val horizontalMergedCandidateLines: Int = horizontalCandidateLines,
+    val verticalMergedCandidateLines: Int = verticalCandidateLines,
+    val horizontalRejectedCandidateLines: Int = (horizontalMergedCandidateLines - horizontalSelectedLines).coerceAtLeast(0),
+    val verticalRejectedCandidateLines: Int = (verticalMergedCandidateLines - verticalSelectedLines).coerceAtLeast(0),
+    val horizontalCandidateReductionRatio: Double = reduction(horizontalCandidateLines, horizontalMergedCandidateLines),
+    val verticalCandidateReductionRatio: Double = reduction(verticalCandidateLines, verticalMergedCandidateLines),
+    val clippingEvidence: ClippingEvidence = ClippingEvidence.NO_CLIPPING_EVIDENCE,
+    val clippingEvidenceReasons: List<String> = emptyList(),
+    val horizontalCandidates: List<LineCandidateDiagnostic> = emptyList(),
+    val verticalCandidates: List<LineCandidateDiagnostic> = emptyList(),
 ) {
-    val rejectedLineCandidates: Int
-        get() = (horizontalCandidateLines - horizontalSelectedLines).coerceAtLeast(0) +
-            (verticalCandidateLines - verticalSelectedLines).coerceAtLeast(0)
+    val rawCandidateCount: Int get() = horizontalCandidateLines + verticalCandidateLines
+    val mergedCandidateCount: Int get() = horizontalMergedCandidateLines + verticalMergedCandidateLines
+    val selectedCandidateCount: Int get() = horizontalSelectedLines + verticalSelectedLines
+    val rejectedCandidateCount: Int get() = horizontalRejectedCandidateLines + verticalRejectedCandidateLines
+    val candidateReductionRatio: Double get() = reduction(rawCandidateCount, mergedCandidateCount)
+    val rejectedLineCandidates: Int get() = rejectedCandidateCount
+
+    companion object {
+        private fun reduction(raw: Int, merged: Int): Double = if (raw <= 0) 0.0 else (raw - merged).toDouble() / raw
+    }
 }
 
 data class StructureDetection(
@@ -103,13 +160,24 @@ data class StructureDetection(
 )
 
 /** Missing edge segments form graph evidence instead of immediately rejecting the source. */
-data class StructureDetectorPolicy(val lineTileSize:Int=32,val lineContrast:Int=35,val lineCap:Int=205)
+data class StructureDetectorPolicy(
+    val lineTileSize:Int=32,
+    val lineContrast:Int=35,
+    val lineCap:Int=205,
+    val horizontalMinCoverage:Double=.24,
+    val verticalMinCoverage:Double=.14,
+    val horizontalContinuityFloor:Double=.55,
+    val verticalContinuityFloor:Double=.55,
+    val horizontalMergeToleranceFraction:Double=.004,
+    val verticalMergeToleranceFraction:Double=.004,
+)
 
 class GridDetector(private val policy: StructureDetectorPolicy = StructureDetectorPolicy(), private val checkpoint: () -> Unit = {}) {
     fun recover(image: GrayImage): StructureDetection {
         checkpoint()
         val working=image.withLinePolicy(policy.lineTileSize,policy.lineContrast,policy.lineCap)
-        val frame=LineGeometry(checkpoint).frame(working) ?: return StructureDetection(StructureOutcome.SOURCE_UNUSABLE,null,listOf("未找到可用表格区域，请选择清晰完整的图片。"))
+        val geometry=LineGeometry(policy,checkpoint)
+        val frame=geometry.frame(working) ?: return StructureDetection(StructureOutcome.SOURCE_UNUSABLE,null,listOf("未找到可用表格区域，请选择清晰完整的图片。"),geometry.lastDiagnostics)
         val grid=graph(working,frame.grid)
         return StructureDetection(grid.outcome,grid,grid.reasons,frame.diagnostics)
     }

@@ -4,6 +4,7 @@ import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import com.formsnap.app.processing.GrayImage
+import com.formsnap.app.processing.ClippingEvidence
 import com.formsnap.app.processing.GridDetector
 import com.formsnap.app.processing.StructureDetectorPolicy
 import com.formsnap.app.processing.StructureOutcome
@@ -15,6 +16,7 @@ import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -28,6 +30,55 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [35], application = Application::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class StructureRobustnessBenchmarkTest {
+    @Test fun `narrow column rotation retains projected boundaries`() {
+        val reports=mutableListOf<String>()
+        val traces=mutableListOf<String>()
+        val failures=mutableListOf<String>()
+        for(columns in listOf(20,24,30,32,40)) for(style in listOf("clean","low-contrast","merged-texture")) {
+            val xs=variableColumns(columns)
+            val ys=(0..14).map { 90+it*42 }
+            val base=renderGrid(xs,14,line=if(style=="low-contrast")142 else 92,
+                background=if(style=="low-contrast")205 else 242,texture=style!="clean",
+                headerRows=if(style=="merged-texture")3 else 1,
+                mergedBoundaries=if(style=="merged-texture")setOf(2,7,13) else emptySet())
+            for(angle in listOf(-2.0,-1.0,-.5,0.0,.5,1.0,2.0)) {
+                val result=GridDetector().recover(rotate(base,angle))
+                val d=result.diagnostics; val grid=result.grid
+                val radians=Math.toRadians(angle); val c=cos(radians); val s=sin(radians)
+                fun unrotate(p:com.formsnap.app.processing.TablePoint):Pair<Double,Double> {
+                    val cx=(base.width-1)/2.0; val cy=(base.height-1)/2.0
+                    val x=p.x*base.width-cx; val y=p.y*base.height-cy
+                    return (c*x+s*y+cx) to (-s*x+c*y+cy)
+                }
+                val actualX=grid?.xs.orEmpty().map { x -> unrotate(grid!!.toImage(x.toFloat(),grid.height/2f)).first }
+                val actualY=grid?.ys.orEmpty().map { y -> unrotate(grid!!.toImage(grid.width/2f,y.toFloat())).second }
+                fun matched(expected:List<Int>,actual:List<Double>):Int {
+                    val remaining=actual.toMutableList(); var count=0
+                    for(target in expected) {
+                        val closest=remaining.minByOrNull { abs(it-target) } ?: continue
+                        if(abs(closest-target)<=4.0) { count++; remaining.remove(closest) }
+                    }
+                    return count
+                }
+                val recall=(matched(xs,actualX)+matched(ys,actualY)).toDouble()/(xs.size+ys.size)
+                val columnError=abs((grid?.columns ?: 0)-columns); val rowError=abs((grid?.rows ?: 0)-14)
+                val success=grid!=null && columnError==0 && rowError==0 && recall>=.98
+                if(!success)failures+="$columns/$style/$angle: ${d.failureStage}, errors=$columnError/$rowError recall=$recall"
+                reports+=listOf(columns,style,angle,d.horizontalCandidateLines,d.verticalCandidateLines,
+                    d.horizontalMergedCandidateLines,d.verticalMergedCandidateLines,grid?.rows ?: 0,grid?.columns ?: 0,
+                    recall,columnError,rowError,success,result.outcome,d.failureStage ?: "NONE",d.proposedQuad).joinToString("\t")
+                d.geometryStages.forEach { stage ->
+                    traces+=listOf(columns,style,angle,stage.stage,stage.horizontal.size,stage.vertical.size,stage.intersections,
+                        stage.horizontal.joinToString(";") { "${it.normalizedPosition}:${it.normalizedStartPosition}:${it.normalizedEndPosition}" },
+                        stage.vertical.joinToString(";") { "${it.normalizedPosition}:${it.normalizedStartPosition}:${it.normalizedEndPosition}" }).joinToString("\t")
+                }
+            }
+        }
+        File("build/reports/structure").mkdirs()
+        File("build/reports/structure/rotation-benchmark.tsv").writeText("columns\tstyle\tangle\trawH\trawV\tmergedH\tmergedV\tselectedRows\tselectedColumns\tboundaryRecall\tcolumnCountError\trowCountError\tsuccess\tstructureStatus\tfailureStage\tquad\n"+reports.joinToString("\n"))
+        File("build/reports/structure/rotation-stages.tsv").writeText("columns\tstyle\tangle\tstage\th\tv\tintersections\thPositionStartEnd\tvPositionStartEnd\n"+traces.joinToString("\n"))
+        assertTrue(failures.joinToString("\n"),failures.isEmpty())
+    }
     private data class Truth(val columns: Int, val rows: Int, val clipped: Boolean)
     private data class Case(
         val id: String,
@@ -55,10 +106,15 @@ class StructureRobustnessBenchmarkTest {
             ),
             Case("narrow-20-four-header", "NARROW_COLUMN", renderGrid(variableColumns(20), rows = 14, texture = true, headerRows = 4, mergedBoundaries = setOf(2, 7, 13)), Truth(20, 14, false), headerDepth = 4, mergedHeaderBoundaries = setOf(2, 7, 13)),
             Case("narrow-40-low-contrast", "NARROW_COLUMN", renderGrid(variableColumns(40), rows = 12, line = 142, background = 205, texture = true), Truth(40, 12, false)),
+            Case("screen-texture-heavy", "SCREEN_TEXTURE_HEAVY", renderGrid(variableColumns(18), rows = 14, line = 118, background = 232, texture = true, screenNoise = true, uiBorder = true), Truth(18, 14, false)),
+            Case("text-heavy-header", "TEXT_HEAVY_HEADER", renderGrid(variableColumns(12), rows = 16, texture = true, headerRows = 3, textHeavy = true, mergedBoundaries = setOf(2, 6, 9)), Truth(12, 16, false), headerDepth = 3, mergedHeaderBoundaries = setOf(2, 6, 9)),
+            Case("ui-border-confusion", "UI_BORDER_CONFUSION", renderGrid(variableColumns(16), rows = 14, texture = true, screenNoise = true, uiBorder = true), Truth(16, 14, false)),
             Case("clip-left", "CLIPPED_TABLE", renderClipped(left = true, right = false), Truth(5, 12, true)),
             Case("clip-right", "CLIPPED_TABLE", renderClipped(left = false, right = true), Truth(5, 12, true)),
-            Case("clip-right-partial", "CLIPPED_TABLE", renderClipped(left = false, right = true, partial = true), Truth(5, 12, true)),
+            Case("true-right-clipping", "TRUE_RIGHT_CLIPPING", renderClipped(left = false, right = true, partial = true), Truth(5, 12, true)),
             Case("clip-both", "CLIPPED_TABLE", renderClipped(left = true, right = true), Truth(5, 12, true)),
+            Case("false-clipping-trap", "FALSE_CLIPPING_TRAP", renderEdgeTouchingComplete(), Truth(6, 12, false)),
+            Case("detector-missing-edge", "DETECTOR_MISSING_EDGE", renderMissingEdge(), Truth(6, 12, false)),
         )
         val policy = StructureDetectorPolicy(32, 35, 205)
         val reportRows = mutableListOf<String>()
@@ -67,20 +123,32 @@ class StructureRobustnessBenchmarkTest {
             val grid = result.grid
             val detectedRows = grid?.rows ?: 0
             val detectedColumns = grid?.columns ?: 0
-            val candidateLines = result.diagnostics.horizontalCandidateLines + result.diagnostics.verticalCandidateLines
-            if (testCase.category == "NARROW_COLUMN") {
+            val diagnostics=result.diagnostics
+            val candidateLines=diagnostics.rawCandidateCount
+            val likelyClipping=setOf(ClippingEvidence.LIKELY_CLIPPED_LEFT,ClippingEvidence.LIKELY_CLIPPED_RIGHT,ClippingEvidence.LIKELY_CLIPPED_BOTH)
+            if (testCase.truth.clipped) {
+                assertTrue("missing clipping evidence for "+testCase.id+" actual="+diagnostics.clippingEvidence+" reasons="+diagnostics.clippingEvidenceReasons.joinToString(";"), diagnostics.clippingEvidence in likelyClipping || diagnostics.clippingEvidence == ClippingEvidence.POSSIBLE_CLIPPING)
+                assertFalse("unsafe auto acceptance for "+testCase.id, result.outcome == StructureOutcome.AUTO_ACCEPTED)
+                assertTrue("fabricated columns for "+testCase.id, detectedColumns <= testCase.truth.columns + 1)
+            } else if (testCase.category == "DETECTOR_MISSING_EDGE") {
                 assertNotNullGrid(testCase.id, result.reasons, grid)
-                assertTrue("${testCase.id} column loss", abs(detectedColumns - testCase.truth.columns) <= 1)
-                assertTrue("${testCase.id} row loss", abs(detectedRows - testCase.truth.rows) <= 1)
-                if (testCase.mergedHeaderBoundaries.isNotEmpty()) {
-                    assertTrue("${testCase.id} merged header evidence missing", grid!!.merged.isNotEmpty())
-                }
+                assertFalse("unsafe auto acceptance for "+testCase.id, result.outcome == StructureOutcome.AUTO_ACCEPTED)
+                assertTrue("missing edge was hidden by clipping evidence for "+testCase.id, diagnostics.clippingEvidence !in likelyClipping)
+                assertTrue("fabricated columns for "+testCase.id, detectedColumns <= testCase.truth.columns)
             } else {
-                // A clipped edge may legitimately remove a visible boundary. The safety invariant
-                // is that the detector does not silently fabricate extra columns and does not
-                // auto-accept an uncertain crop.
-                assertTrue("${testCase.id} fabricated columns", detectedColumns <= testCase.truth.columns + 1)
-                assertFalse("${testCase.id} unsafe auto acceptance", result.outcome == StructureOutcome.AUTO_ACCEPTED)
+                assertNotNullGrid(testCase.id, result.reasons, grid)
+                assertTrue("column loss for "+testCase.id, abs(detectedColumns - testCase.truth.columns) <= 1)
+                assertTrue("row loss for "+testCase.id, abs(detectedRows - testCase.truth.rows) <= 1)
+                assertTrue("false clipping signal for "+testCase.id, diagnostics.clippingEvidence == ClippingEvidence.NO_CLIPPING_EVIDENCE)
+                if (testCase.mergedHeaderBoundaries.isNotEmpty()) {
+                    assertTrue("merged header evidence missing for "+testCase.id, grid!!.merged.isNotEmpty())
+                }
+            }
+            if (testCase.category == "TRUE_RIGHT_CLIPPING") {
+                assertEquals("clipping side for "+testCase.id, ClippingEvidence.LIKELY_CLIPPED_RIGHT, diagnostics.clippingEvidence)
+            }
+            if (testCase.category == "FALSE_CLIPPING_TRAP") {
+                assertEquals("false clipping for "+testCase.id, ClippingEvidence.NO_CLIPPING_EVIDENCE, diagnostics.clippingEvidence)
             }
             reportRows += listOf(
                 testCase.category,
@@ -90,12 +158,16 @@ class StructureRobustnessBenchmarkTest {
                 testCase.truth.rows.toString(),
                 detectedRows.toString(),
                 result.outcome.name,
-                candidateLines.toString(),
-                result.diagnostics.rejectedLineCandidates.toString(),
+                diagnostics.horizontalCandidateLines.toString(),
+                diagnostics.verticalCandidateLines.toString(),
+                diagnostics.horizontalMergedCandidateLines.toString(),
+                diagnostics.verticalMergedCandidateLines.toString(),
+                diagnostics.horizontalSelectedLines.toString(),
+                diagnostics.verticalSelectedLines.toString(),
+                diagnostics.rejectedLineCandidates.toString(),
+                "%.3f".format(java.util.Locale.ROOT,diagnostics.candidateReductionRatio),
                 if (testCase.truth.clipped) "EDGE_CLIPPED" else "FULLY_VISIBLE",
-                if (testCase.truth.clipped) {
-                    if (result.reasons.any { it.contains("裁切") }) "DETECTED" else "NO_EXPLICIT_SIGNAL"
-                } else "NA",
+                diagnostics.clippingEvidence.name,
                 testCase.headerDepth.toString(),
                 testCase.mergedHeaderBoundaries.size.toString(),
                 result.reasons.joinToString("|").replace("\t", " "),
@@ -108,7 +180,7 @@ class StructureRobustnessBenchmarkTest {
         File("build/reports/structure").mkdirs()
         File("build/reports/structure/robustness-benchmark.tsv").writeText(
             buildString {
-                appendLine("category\tid\texpectedColumns\tdetectedColumns\texpectedRows\tdetectedRows\toutcome\tcandidateLines\trejectedLineCandidates\tboundaryMode\tclippingSignal\theaderDepth\tmergedHeaderBoundaryCount\treasons")
+                appendLine("category\tid\texpectedColumns\tdetectedColumns\texpectedRows\tdetectedRows\toutcome\trawH\trawV\tmergedH\tmergedV\tselectedH\tselectedV\trejected\treduction\tboundaryMode\tclippingEvidence\theaderDepth\tmergedHeaderBoundaryCount\treasons")
                 reportRows.forEach(::appendLine)
                 appendLine()
                 appendLine("stabilityCategory\tid\tvariant\texpectedColumns\tdetectedColumns\texpectedRows\tdetectedRows\tcolumnCountVariance\trowCountVariance\tstructureStability")
@@ -176,9 +248,12 @@ class StructureRobustnessBenchmarkTest {
         headerRows: Int = 1,
         mergedBoundaries: Set<Int> = emptySet(),
         screenNoise: Boolean = false,
+        textHeavy: Boolean = false,
+        uiBorder: Boolean = false,
+        omitVerticalBoundaries: Set<Int> = emptySet(),
     ): GrayImage {
         val ys = (0..rows).map { 90 + it * 42 }
-        return raster(xs, ys, width, height, line, background, texture, headerRows, mergedBoundaries, screenNoise)
+        return raster(xs, ys, width, height, line, background, texture, headerRows, mergedBoundaries, screenNoise, textHeavy, uiBorder, omitVerticalBoundaries)
     }
 
     private fun raster(
@@ -192,6 +267,9 @@ class StructureRobustnessBenchmarkTest {
         headerRows: Int = 1,
         mergedBoundaries: Set<Int> = emptySet(),
         screenNoise: Boolean = false,
+        textHeavy: Boolean = false,
+        uiBorder: Boolean = false,
+        omitVerticalBoundaries: Set<Int> = emptySet(),
     ): GrayImage {
         val pixels = ByteArray(width * height) { index ->
             val x = index % width
@@ -199,12 +277,16 @@ class StructureRobustnessBenchmarkTest {
             val paper = if (texture) ((x * 7 + y * 11) % 9) else 0
             val vertical = xs.withIndex().any { (boundary, value) ->
                 abs(x - value) <= 1 && y >= ys.first() && y <= ys.last() &&
-                    (boundary !in mergedBoundaries || y > ys[headerRows.coerceIn(1, ys.lastIndex)])
+                    (boundary !in omitVerticalBoundaries && (boundary !in mergedBoundaries || y > ys[headerRows.coerceIn(1, ys.lastIndex)]))
             }
             val horizontal = ys.any { abs(y - it) <= 1 } && x >= xs.first() && x <= xs.last()
+            // Visible to a reader, but below the detector's local contrast threshold.
+            val weakOuterEdge=omitVerticalBoundaries.any { abs(x-xs[it])<=1 } && y in ys.first()..ys.last()
             val uiLine = screenNoise && (y == 18 || y == height - 20 || x == 12)
             val uiTexture = screenNoise && x > width - 80 && y in 80..(height - 80) && y % 18 < 2
-            (if (vertical || horizontal) line else if (uiLine || uiTexture) 145 else (background - paper).coerceIn(0, 255)).toByte()
+            val uiFrame = uiBorder && (x in 3..5 || x in (width - 6)..(width - 4) || y in 3..5 || y in (height - 6)..(height - 4))
+            val headerText = textHeavy && y in ys.first() until ys[headerRows.coerceIn(1, ys.lastIndex)] && x in xs.first()..xs.last() && ((x / 5 + y / 7) % 17 < 2 || (x / 11 + y / 3) % 29 == 0)
+            (if (vertical || horizontal) line else if(weakOuterEdge) background-20 else if (uiLine || uiTexture || uiFrame || headerText) 145 else (background - paper).coerceIn(0, 255)).toByte()
         }
         return GrayImage(width, height, pixels)
     }
@@ -241,6 +323,22 @@ class StructureRobustnessBenchmarkTest {
             (if (vertical || horizontal) 110 else 240).toByte()
         }
         return GrayImage(imageWidth, imageHeight, pixels)
+    }
+
+    private fun renderEdgeTouchingComplete(): GrayImage {
+        val width=1300
+        val height=900
+        val xs=listOf(10,220,430,640,850,1060,1290)
+        val ys=(0..12).map { 70+it*60 }
+        return raster(xs,ys,width,height,line=110,background=240,texture=true)
+    }
+
+    private fun renderMissingEdge(): GrayImage {
+        val width=1400
+        val height=900
+        val xs=(0..6).map { 80+it*170 }
+        val ys=(0..12).map { 70+it*60 }
+        return raster(xs,ys,width,height,line=100,background=240,texture=true,omitVerticalBoundaries=setOf(6))
     }
 
     private fun adjustBrightness(image: GrayImage, amount: Int): GrayImage = mapPixels(image) { (it + amount).coerceIn(0, 255) }

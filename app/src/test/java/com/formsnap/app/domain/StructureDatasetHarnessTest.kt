@@ -34,15 +34,18 @@ class StructureDatasetHarnessTest {
             val detected=GridDetector(selected).recover(truth.image)
             val grid=detected.grid
             val rows=grid?.rows ?: 0;val columns=grid?.columns ?: 0
-            val rowRecall=boundaryRecall(truth.ys,grid?.ys.orEmpty())
-            val columnRecall=boundaryRecall(truth.xs,grid?.xs.orEmpty())
+            val sourceRows=grid?.ys.orEmpty().map { y -> grid?.quad?.map(.5f,y.toFloat()/grid.height)?.y?.times(truth.image.height) ?: y.toFloat() }
+            val sourceColumns=grid?.xs.orEmpty().map { x -> grid?.quad?.map(x.toFloat()/grid.width,.5f)?.x?.times(truth.image.width) ?: x.toFloat() }
+            val rowRecall=boundaryRecall(truth.ys,sourceRows)
+            val columnRecall=boundaryRecall(truth.xs,sourceColumns)
+            val metrics=CandidateMetrics.from(truth,detected)
             val catastrophic=grid==null || abs(rows-(truth.ys.size-1))>1 || abs(columns-(truth.xs.size-1))>1
             if(truth.expectedReview) assertNotEquals("Unsafe auto acceptance for ${truth.id}",StructureOutcome.AUTO_ACCEPTED,detected.outcome)
             if(truth.split=="HOLDOUT") assertFalse("Holdout case ${truth.id} catastrophically failed (rows=$rows cols=$columns)",catastrophic)
-            "${truth.split}\t${truth.id}\t${grid!=null}\t${truth.ys.size-1}\t$rows\t${truth.xs.size-1}\t$columns\t$columnRecall\t$rowRecall\t${if(truth.expectedReview)"STRUCTURE_REVIEW_REQUIRED" else "AUTO_ACCEPTED"}\t${detected.outcome}\t${truth.falseLineCount}"
+            "${truth.split}\t${truth.id}\t${grid!=null}\t${truth.ys.size-1}\t$rows\t${truth.xs.size-1}\t$columns\t$columnRecall\t$rowRecall\t${metrics.candidatePrecision}\t${metrics.candidateRecall}\t${metrics.selectedPrecision}\t${metrics.selectedRecall}\t${detected.diagnostics.clippingEvidence}\t${if(truth.expectedReview)"STRUCTURE_REVIEW_REQUIRED" else "AUTO_ACCEPTED"}\t${detected.outcome}\t${truth.falseLineCount}"
         }
         val report=buildString {
-            appendLine("split\tid\ttableDetected\texpectedRows\tdetectedRows\texpectedColumns\tdetectedColumns\tcolumnBoundaryRecall\trowBoundaryRecall\texpectedOutcome\tdetectedOutcome\tknownFalseLines")
+            appendLine("split\tid\ttableDetected\texpectedRows\tdetectedRows\texpectedColumns\tdetectedColumns\tcolumnBoundaryRecall\trowBoundaryRecall\tcandidatePrecision\tcandidateRecall\tselectedPrecision\tselectedRecall\tclippingEvidence\trequestedOutcome\tdetectedOutcome\tknownFalseLines")
             reports.forEach(::appendLine)
         }
         File("build/reports/structure").mkdirs()
@@ -51,6 +54,30 @@ class StructureDatasetHarnessTest {
         val holdout=reports.count { it.startsWith("HOLDOUT") }
         assertEquals(12,holdout)
     }
+
+    private data class CandidateMetrics(val candidatePrecision:String,val candidateRecall:String,val selectedPrecision:String,val selectedRecall:String) {
+        companion object {
+            fun from(truth:Truth,detection:StructureDetection):CandidateMetrics {
+                val width=truth.image.width.toFloat(); val height=truth.image.height.toFloat()
+                val horizontal=truth.ys.map { it/height }; val vertical=truth.xs.map { it/width }
+                fun score(expected:List<Float>,actual:List<LineCandidateDiagnostic>,selectedOnly:Boolean):Pair<Double,Double> {
+                    val values=actual.filter { !selectedOnly || it.disposition==CandidateDisposition.SELECTED }.map { it.normalizedPosition }
+                    val tolerance=.006f
+                    val matched=matchCount(expected,values,tolerance)
+                    val precision=if(values.isEmpty())0.0 else matched.toDouble()/values.size
+                    val recall=if(expected.isEmpty())0.0 else matched.toDouble()/expected.size
+                    return precision to recall
+                }
+                val h=score(horizontal,detection.diagnostics.horizontalCandidates,false); val v=score(vertical,detection.diagnostics.verticalCandidates,false)
+                val hs=score(horizontal,detection.diagnostics.horizontalCandidates,true); val vs=score(vertical,detection.diagnostics.verticalCandidates,true)
+                fun avg(pair:Pair<Double,Double>,other:Pair<Double,Double>)=pair.first.plus(other.first)/2 to pair.second.plus(other.second)/2
+                val candidate=avg(h,v); val selected=avg(hs,vs)
+                fun format(value:Double)="%.3f".format(java.util.Locale.ROOT,value)
+                return CandidateMetrics(format(candidate.first),format(candidate.second),format(selected.first),format(selected.second))
+            }
+        }
+    }
+
 
     private fun make(index:Int): Truth {
         val split=when { index<24->"TRAIN"; index<36->"VALIDATION"; else->"HOLDOUT" }
@@ -72,9 +99,30 @@ class StructureDatasetHarnessTest {
         return Truth(split,"case-$index",xs,ys,GrayImage(width,height,pixels),review,falseLines)
     }
 
-    private fun boundaryRecall(expected:List<Int>,actual:List<Int>):String {
+    private fun boundaryRecall(expected:List<Int>,actual:List<Float>):String {
         if(actual.isEmpty())return "0.000"
-        val matched=expected.count { value -> actual.any { abs(it-value)<=4 } }
+        val matched=matchCount(expected.map { it.toFloat() },actual,4f)
         return "%.3f".format(java.util.Locale.ROOT,matched.toDouble()/expected.size)
+    }
+
+    companion object {
+        /** Sorted one-to-one matching: aliases cannot each count as a true positive. */
+        private fun matchCount(expected:List<Float>,actual:List<Float>,tolerance:Float):Int {
+            val targets=expected.sorted(); val values=actual.sorted()
+            var target=0; var value=0; var matches=0
+            while(target<targets.size && value<values.size) {
+                when {
+                    values[value]<targets[target]-tolerance -> value++
+                    targets[target]<values[value]-tolerance -> target++
+                    else -> { matches++; target++; value++ }
+                }
+            }
+            return matches
+        }
+    }
+
+    @Test fun `duplicate candidates cannot inflate boundary precision`() {
+        assertEquals(1,matchCount(listOf(.5f),listOf(.498f,.5f,.502f),.006f))
+        assertEquals(2,matchCount(listOf(.5f,.51f),listOf(.505f,.515f),.006f))
     }
 }
